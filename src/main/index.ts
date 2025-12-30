@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import icon from '../../resources/NauticPlayerIcon.ico?asset'
 import { setupMpvController, quitMpv } from './mpvController'
 
 let mainWindow: BrowserWindow | null = null
@@ -19,7 +19,7 @@ function createWindow(): void {
     transparent: true, // Enable transparency
     backgroundColor: '#00000000', // Fully transparent background
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon, // Apply icon to all platforms (Windows needs .ico)
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

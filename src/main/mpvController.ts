@@ -183,6 +183,9 @@ function resizeWindowToVideo(mainWindow: BrowserWindow, videoW: number, videoH: 
 }
 
 function handleTrackListChange(tracks: any[], mainWindow: BrowserWindow) {
+  // If no tracks (idle), do nothing or clear filter. Don't show Auto-BG on startup.
+  if (tracks.length === 0) return
+
   const hasVideo = tracks.some(t => t.type === 'video')
   
   if (!hasVideo) {

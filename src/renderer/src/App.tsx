@@ -4,24 +4,32 @@ import Controls from './components/Controls'
 import './assets/premium.css'
 import { Minus, X } from 'lucide-react'
 import appIcon from './assets/NauticPlayerIcon.ico'
+// Note: assuming FondoInicio.png is in assets as verified. If not, fallback to appIcon.
+import startupImg from './assets/NauticPlayerHello-.png'
 
 const { ipcRenderer } = (window as any).require('electron')
 
 function App(): JSX.Element {
     const [isMaximized, setIsMaximized] = useState(false)
     const [isDragOver, setIsDragOver] = useState(false)
+    const [hasStarted, setHasLoadedFile] = useState(false)
 
     // Listen for maximize state changes
     useEffect(() => {
         const handleMaximize = () => setIsMaximized(true)
         const handleUnmaximize = () => setIsMaximized(false)
 
+        // Listen for playback to hide welcome screen
+        const onMpvDuration = () => setHasLoadedFile(true)
+
         ipcRenderer.on('window-maximized', handleMaximize)
         ipcRenderer.on('window-unmaximized', handleUnmaximize)
+        ipcRenderer.on('mpv-duration', onMpvDuration)
 
         return () => {
             ipcRenderer.removeListener('window-maximized', handleMaximize)
             ipcRenderer.removeListener('window-unmaximized', handleUnmaximize)
+            ipcRenderer.removeListener('mpv-duration', onMpvDuration)
         }
     }, [])
 
@@ -35,13 +43,18 @@ function App(): JSX.Element {
     const handleDragLeave = (e: DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
-        setIsDragOver(false)
+
+        // Only disable if we are actually leaving the container (not just entering a child)
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setIsDragOver(false)
+        }
     }
 
     const handleDrop = (e: DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
         setIsDragOver(false)
+        setHasLoadedFile(true)
 
         const files = e.dataTransfer.files
         if (files.length > 0) {
@@ -96,7 +109,8 @@ function App(): JSX.Element {
                 overflow: 'hidden',
                 position: 'relative',
                 borderRadius: '0',
-                background: 'transparent',
+                background: hasStarted ? 'transparent' : 'rgba(0, 0, 0, 0.7)', // Transparent when playing text
+                backdropFilter: hasStarted ? 'none' : 'blur(20px)',     // Remove blur when playing
                 boxShadow: 'none',
             }}
         >
@@ -145,6 +159,37 @@ function App(): JSX.Element {
                         }}>
                             Drop File
                         </span>
+                    </div>
+                </div>
+            )}
+
+            {/* Startup/Welcome Overlay (Only if not playing and not dragging) */}
+            {!isDragOver && !hasStarted && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 400, // Below (or same as) drag overlay
+                    pointerEvents: 'none'
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: 0.8
+                    }}>
+                        <div style={{
+                            marginBottom: '15px',
+                            filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))'
+                        }}>
+                            <img src={startupImg} alt="Welcome" style={{ width: '350px', height: 'auto' }} />
+                        </div>
                     </div>
                 </div>
             )}
