@@ -13,6 +13,7 @@ function App(): JSX.Element {
     const [isMaximized, setIsMaximized] = useState(false)
     const [isDragOver, setIsDragOver] = useState(false)
     const [hasStarted, setHasLoadedFile] = useState(false)
+    const [toastMsg, setToastMsg] = useState('')
 
     // Listen for maximize state changes
     useEffect(() => {
@@ -31,6 +32,16 @@ function App(): JSX.Element {
             ipcRenderer.removeListener('window-unmaximized', handleUnmaximize)
             ipcRenderer.removeListener('mpv-duration', onMpvDuration)
         }
+    }, [])
+
+    // Toast Listener
+    useEffect(() => {
+        const onMpvMsg = (_: any, text: string) => {
+            setToastMsg(text)
+            setTimeout(() => setToastMsg(''), 5000) // 5 seconds
+        }
+        ipcRenderer.on('mpv-msg', onMpvMsg)
+        return () => { ipcRenderer.removeListener('mpv-msg', onMpvMsg) }
     }, [])
 
     // Drag and Drop handlers
@@ -278,6 +289,32 @@ function App(): JSX.Element {
             }}>
                 <Controls showSettings={showSettings} setShowSettings={setShowSettings} />
             </div>
+
+            {/* Toast Notification */}
+            {toastMsg && (
+                <div style={{
+                    position: 'absolute',
+                    top: '80px', // Below title bar
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'rgba(37, 99, 235, 0.9)', // Blue-600
+                    color: '#fff',
+                    padding: '8px 20px',
+                    borderRadius: '20px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    zIndex: 9999,
+                    boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                    backdropFilter: 'blur(8px)',
+                    animation: 'fadeIn 0.3s ease-out',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}>
+                    {toastMsg}
+                </div>
+            )}
         </div>
     )
 }

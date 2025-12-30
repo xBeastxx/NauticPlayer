@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
     Settings, X, Monitor, Volume2, Subtitles, PlayCircle,
-    Zap, Camera, Layers, FileVideo, ChevronDown, Check
+    Zap, Camera, Layers, FileVideo, ChevronDown, Check, RefreshCw
 } from 'lucide-react'
 
 const { ipcRenderer } = (window as any).require('electron')
@@ -375,9 +375,12 @@ export default function SettingsMenu({
                                     </button>
                                 </SettingItem>
 
-                                <div style={{ marginTop: '25px' }}>
+                                <div style={{ marginTop: '25px', display: 'flex', gap: '10px' }}>
                                     <button onClick={openConfig} style={actionButtonStyle}>
                                         <FileVideo size={16} /> Open MPV Folder
+                                    </button>
+                                    <button onClick={() => ipcRenderer.send('mpv-update-ytdl')} style={actionButtonStyle}>
+                                        <RefreshCw size={16} /> Update Engines
                                     </button>
                                 </div>
 

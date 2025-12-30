@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen } from 'lucide-react'
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock } from 'lucide-react'
 import SettingsMenu from './SettingsMenu'
 
 // Use window.require for Electron in Vite context
@@ -238,48 +238,52 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
             pointerEvents: 'none'
         }}>
             {/* Stream URL Input Overlay */}
+            {/* Stream URL Input - Floating above timeline */}
             {showUrlInput && (
                 <div style={{
                     position: 'absolute',
-                    bottom: '100px',
-                    background: 'rgba(0, 0, 0, 0.6)',
-                    backdropFilter: 'blur(10px)',
-                    padding: '15px',
-                    borderRadius: '16px',
+                    bottom: '85px',
+                    background: '#121212', // Solid background (requested: "no transparente")
+                    padding: '8px 12px',
+                    borderRadius: '12px',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
-                    pointerEvents: 'auto',
                     display: 'flex',
+                    alignItems: 'center',
                     gap: '10px',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
-                    animation: 'fadeIn 0.2s ease-out'
-                }}>
-                    <form onSubmit={handleUrlSubmit} style={{ display: 'flex', gap: '10px' }}>
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    pointerEvents: 'auto',
+                    zIndex: 100
+                }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <form onSubmit={handleUrlSubmit} style={{ display: 'flex', gap: '8px', alignItems: 'center', margin: 0 }}>
+                        <Lock size={14} color="rgba(255,255,255,0.3)" style={{ opacity: streamUrl.startsWith('https') ? 1 : 0 }} />
                         <input
                             type="text"
-                            placeholder="Paste YouTube/Twitch URL..."
+                            placeholder="Enter Stream URL..."
                             value={streamUrl}
                             onChange={(e) => setStreamUrl(e.target.value)}
                             autoFocus
                             style={{
-                                background: 'rgba(255,255,255,0.1)',
+                                background: 'transparent',
                                 border: 'none',
-                                borderRadius: '8px',
-                                padding: '8px 12px',
                                 color: '#fff',
-                                width: '250px',
+                                fontSize: '13px',
+                                width: '220px',
                                 outline: 'none',
                                 fontFamily: 'Inter, sans-serif'
                             }}
                         />
                         <button type="submit" style={{
-                            background: '#fff',
-                            color: '#000',
+                            background: '#3b82f6',
+                            color: '#fff',
                             border: 'none',
-                            borderRadius: '8px',
-                            padding: '8px 16px',
-                            fontWeight: 'bold',
+                            borderRadius: '6px',
+                            padding: '4px 10px',
+                            fontSize: '12px',
+                            fontWeight: 600,
                             cursor: 'pointer'
-                        }}>Play</button>
+                        }}>Go</button>
                     </form>
                 </div>
             )}
@@ -436,36 +440,7 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
                 </div>
             </div>
 
-            {/* URL Input Dialog */}
-            {showUrlInput && (
-                <div className="url-dialog-overlay" onClick={() => setShowUrlInput(false)}>
-                    <div className="url-dialog" onClick={(e) => e.stopPropagation()}>
-                        <h3>Open Network Stream</h3>
-                        <input
-                            type="text"
-                            placeholder="Enter URL (YouTube, Twitch, direct link...)"
-                            value={streamUrl}
-                            onChange={(e) => setStreamUrl(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    ipcRenderer.send('mpv-load', streamUrl)
-                                    setShowUrlInput(false)
-                                    setStreamUrl('')
-                                }
-                            }}
-                            autoFocus
-                        />
-                        <div className="url-dialog-buttons">
-                            <button onClick={() => setShowUrlInput(false)}>Cancel</button>
-                            <button onClick={() => {
-                                ipcRenderer.send('mpv-load', streamUrl)
-                                setShowUrlInput(false)
-                                setStreamUrl('')
-                            }}>Play</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* Settings Menu Overlay */}
             {showSettings && (

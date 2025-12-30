@@ -307,7 +307,53 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
       require('electron').shell.openPath(mpvConfDir)
   })
 
+  // === Update Logic ===
+  ipcMain.on('mpv-update-ytdl', () => {
+    updateYtdl(mainWindow, false)
+  })
 
+
+}
+
+function updateYtdl(mainWindow: BrowserWindow, silent: boolean) {
+    console.log(`Checking for yt-dlp updates (Silent: ${silent})...`)
+    if (!silent) mainWindow.webContents.send('mpv-msg', '🔄 Updating engines...')
+
+    const resourcesPath = is.dev 
+      ? join(process.cwd(), 'resources')
+      : process.resourcesPath
+    const binPath = join(resourcesPath, 'bin')
+    const ytdlPath = join(binPath, 'yt-dlp.exe')
+
+    const updateProcess = spawn(ytdlPath, ['-U'])
+
+    let output = ''
+
+    updateProcess.stdout?.on('data', (data) => {
+        output += data.toString()
+        console.log('yt-dlp update output:', data.toString())
+    })
+
+    updateProcess.on('close', (code) => {
+      if (code === 0) {
+        const wasUpdated = output.includes('Updated') || output.includes('updating')
+        
+        if (!silent) {
+            mainWindow.webContents.send('mpv-msg', '✅ Engines updated!')
+        } else if (wasUpdated) {
+            mainWindow.webContents.send('mpv-msg', '✅ Engines Auto-Updated')
+        }
+        console.log('yt-dlp check finished. Updated:', wasUpdated)
+      } else {
+        console.error('yt-dlp update exited with code:', code)
+        if (!silent) mainWindow.webContents.send('mpv-msg', `Update refresh (Code ${code})`)
+      }
+    })
+
+    updateProcess.on('error', (err) => {
+      console.error('yt-dlp spawn error:', err)
+      if (!silent) mainWindow.webContents.send('mpv-msg', '❌ Update error')
+    })
 }
 
 export function quitMpv(): void {
