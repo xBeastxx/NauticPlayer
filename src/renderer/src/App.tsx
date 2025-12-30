@@ -66,6 +66,7 @@ function App(): JSX.Element {
 
     // Auto-hide controls logic
     const [showControls, setShowControls] = useState(true)
+    const [showSettings, setShowSettings] = useState(false) // Lifted state
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     const handleMouseMove = () => {
@@ -75,10 +76,21 @@ function App(): JSX.Element {
         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
 
         hideTimeoutRef.current = setTimeout(() => {
-            setShowControls(false)
-            document.body.style.cursor = 'none'
-        }, 1500) // Reduced to 1.5s for snappier feel
+            if (!showSettings) { // Only hide if settings are closed
+                setShowControls(false)
+                document.body.style.cursor = 'none'
+            }
+        }, 1500)
     }
+
+    // Force controls visible if settings are open
+    useEffect(() => {
+        if (showSettings) {
+            setShowControls(true)
+            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
+            document.body.style.cursor = 'default'
+        }
+    }, [showSettings])
 
     useEffect(() => {
         window.addEventListener('mousemove', handleMouseMove)
@@ -86,14 +98,15 @@ function App(): JSX.Element {
             window.removeEventListener('mousemove', handleMouseMove)
             if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
         }
-    }, [])
+    }, [showSettings]) // Re-bind capability if needed, or better yet, use ref for showSettings or just rely on state closure if we used a ref. 
+    // actually handleMouseMove captures the scope variable. 'showSettings' will be stale in the timeout if we don't be careful.
+    // Better to use a ref for showSettings or recreate the handler.
+    // Simplest is to add showSettings to dependency array.
 
-    // Placeholder for handleDragEnter, as it's used in the return but not defined in the instruction's function block
+    // Placeholder for handleDragEnter
     const handleDragEnter = (e: DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        // Optionally set isDragOver to true here if you want visual feedback immediately on enter
-        // setIsDragOver(true); 
     };
 
     return (
@@ -109,8 +122,8 @@ function App(): JSX.Element {
                 overflow: 'hidden',
                 position: 'relative',
                 borderRadius: '0',
-                background: hasStarted ? 'transparent' : 'rgba(0, 0, 0, 0.7)', // Transparent when playing text
-                backdropFilter: hasStarted ? 'none' : 'blur(20px)',     // Remove blur when playing
+                background: hasStarted ? 'transparent' : 'rgba(0, 0, 0, 0.7)',
+                backdropFilter: hasStarted ? 'none' : 'blur(20px)',
                 boxShadow: 'none',
             }}
         >
@@ -122,9 +135,7 @@ function App(): JSX.Element {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    // background: 'transparent', // Removed opacity/blur
-                    // backdropFilter: 'none',
-                    background: 'rgba(0,0,0,0.0)', // Totally transparent
+                    background: 'rgba(0,0,0,0.0)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -141,7 +152,6 @@ function App(): JSX.Element {
                         transform: 'scale(1.2)',
                         transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
                     }}>
-                        {/* App Icon for Drop Zone */}
                         <div style={{
                             marginBottom: '15px',
                             filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))',
@@ -163,7 +173,7 @@ function App(): JSX.Element {
                 </div>
             )}
 
-            {/* Startup/Welcome Overlay (Only if not playing and not dragging) */}
+            {/* Startup/Welcome Overlay */}
             {!isDragOver && !hasStarted && (
                 <div style={{
                     position: 'absolute',
@@ -174,7 +184,7 @@ function App(): JSX.Element {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    zIndex: 400, // Below (or same as) drag overlay
+                    zIndex: 400,
                     pointerEvents: 'none'
                 }}>
                     <div style={{
@@ -218,7 +228,6 @@ function App(): JSX.Element {
                 transition: 'opacity 0.5s ease',
                 pointerEvents: showControls ? 'auto' : 'none'
             } as any}>
-                {/* Minimize Button */}
                 <button
                     onClick={() => ipcRenderer.send('minimize-window')}
                     style={{
@@ -239,7 +248,6 @@ function App(): JSX.Element {
                 >
                     <Minus size={14} />
                 </button>
-                {/* Close Button */}
                 <button
                     onClick={() => ipcRenderer.send('close-window')}
                     style={{
@@ -262,16 +270,13 @@ function App(): JSX.Element {
                 </button>
             </div>
 
-            {/* Main Player Area - Removed as MPV handles rendering */}
-            {/* <Player className="player-wrapper" /> */}
-
             {/* Overlay UI */}
             <div style={{
                 opacity: showControls ? 1 : 0,
                 transition: 'opacity 0.5s ease',
                 pointerEvents: showControls ? 'auto' : 'none'
             }}>
-                <Controls />
+                <Controls showSettings={showSettings} setShowSettings={setShowSettings} />
             </div>
         </div>
     )

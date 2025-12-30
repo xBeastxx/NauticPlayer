@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music } from 'lucide-react'
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen } from 'lucide-react'
+import SettingsMenu from './SettingsMenu'
 
 // Use window.require for Electron in Vite context
 const { ipcRenderer } = (window as any).require('electron')
@@ -35,7 +36,9 @@ const formatTime = (seconds: number): string => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
-export default function Controls(): JSX.Element {
+// ... imports
+
+export default function Controls({ showSettings, setShowSettings }: any): JSX.Element {
     // Playback State
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
@@ -51,7 +54,17 @@ export default function Controls(): JSX.Element {
     const [showUrlInput, setShowUrlInput] = useState(false)
     const [streamUrl, setStreamUrl] = useState('')
     const [isShaderOn, setIsShaderOn] = useState(false)
-    const [isVisualizerOn, setIsVisualizerOn] = useState(false)
+    // Settings State
+    // const [showSettings, setShowSettings] = useState(false) <-- Lifted to App
+    const [tracks, setTracks] = useState<any[]>([])
+
+    // Persistent Settings (Lifted from SettingsMenu)
+    const [hwDec, setHwDec] = useState(true)
+    const [anime4K, setAnime4K] = useState(false)
+    const [loopState, setLoopState] = useState<'none' | 'inf' | 'one'>('none')
+
+    // Stats State
+    const [showStats, setShowStats] = useState(false)
 
     const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -84,11 +97,16 @@ export default function Controls(): JSX.Element {
             setVolume(vol)
         }
 
+        const onMpvTracks = (_event: any, trackList: any[]) => {
+            setTracks(trackList)
+        }
+
         ipcRenderer.on('mpv-ready', onMpvReady)
         ipcRenderer.on('mpv-time', onMpvTime)
         ipcRenderer.on('mpv-duration', onMpvDuration)
         ipcRenderer.on('mpv-paused', onMpvPaused)
         ipcRenderer.on('mpv-volume', onMpvVolume)
+        ipcRenderer.on('mpv-tracks', onMpvTracks)
 
         return () => {
             ipcRenderer.removeListener('mpv-ready', onMpvReady)
@@ -96,6 +114,7 @@ export default function Controls(): JSX.Element {
             ipcRenderer.removeListener('mpv-duration', onMpvDuration)
             ipcRenderer.removeListener('mpv-paused', onMpvPaused)
             ipcRenderer.removeListener('mpv-volume', onMpvVolume)
+            ipcRenderer.removeListener('mpv-tracks', onMpvTracks)
         }
     }, [isDraggingTime])
 
@@ -117,6 +136,12 @@ export default function Controls(): JSX.Element {
             setIsMuted(true)
             ipcRenderer.send('mpv-mute', true)
         }
+    }
+
+    const toggleStats = () => {
+        const newVal = !showStats
+        setShowStats(newVal)
+        ipcRenderer.send('mpv-command', ['script-binding', 'stats/display-stats-toggle'])
     }
 
     // Timeline Drag Handlers
@@ -187,6 +212,13 @@ export default function Controls(): JSX.Element {
             ipcRenderer.send('mpv-load', streamUrl)
             setShowUrlInput(false)
             setStreamUrl('')
+        }
+    }
+
+    const handleOpenFile = async () => {
+        const filePath = await ipcRenderer.invoke('open-file-dialog')
+        if (filePath) {
+            ipcRenderer.send('mpv-load', filePath)
         }
     }
 
@@ -366,6 +398,10 @@ export default function Controls(): JSX.Element {
                         </div>
                     </div>
 
+                    <FloatingButton onClick={handleOpenFile}>
+                        <FolderOpen size={18} color="rgba(255,255,255,0.7)" />
+                    </FloatingButton>
+
                     <FloatingButton onClick={() => setShowUrlInput(!showUrlInput)}>
                         <Globe size={18} color={showUrlInput ? "#fff" : "rgba(255,255,255,0.7)"} />
                     </FloatingButton>
@@ -387,22 +423,65 @@ export default function Controls(): JSX.Element {
                 </div>
 
 
-                {/* Right Tools */}
+                {/* Right Tools - Cleaner, just Settings + Fullscreen */}
                 <div style={{ display: 'flex', gap: '15px' }}>
-                    <FloatingButton onClick={() => {
-                        ipcRenderer.send('mpv-toggle-shader')
-                        setIsShaderOn(!isShaderOn)
-                    }} >
-                        <Sparkles size={18} color={isShaderOn ? "#aaffaa" : "white"} />
+
+                    <FloatingButton onClick={() => setShowSettings(!showSettings)}>
+                        <Settings size={20} color={showSettings ? "#fff" : "rgba(255,255,255,0.7)"} />
                     </FloatingButton>
-                    <FloatingButton onClick={noop}><Settings size={18} /></FloatingButton>
+
                     <FloatingButton onClick={() => { ipcRenderer.send('toggle-fullscreen'); setIsFullscreen(!isFullscreen) }}>
-                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                        {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
                     </FloatingButton>
                 </div>
-
             </div>
 
+            {/* URL Input Dialog */}
+            {showUrlInput && (
+                <div className="url-dialog-overlay" onClick={() => setShowUrlInput(false)}>
+                    <div className="url-dialog" onClick={(e) => e.stopPropagation()}>
+                        <h3>Open Network Stream</h3>
+                        <input
+                            type="text"
+                            placeholder="Enter URL (YouTube, Twitch, direct link...)"
+                            value={streamUrl}
+                            onChange={(e) => setStreamUrl(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    ipcRenderer.send('mpv-load', streamUrl)
+                                    setShowUrlInput(false)
+                                    setStreamUrl('')
+                                }
+                            }}
+                            autoFocus
+                        />
+                        <div className="url-dialog-buttons">
+                            <button onClick={() => setShowUrlInput(false)}>Cancel</button>
+                            <button onClick={() => {
+                                ipcRenderer.send('mpv-load', streamUrl)
+                                setShowUrlInput(false)
+                                setStreamUrl('')
+                            }}>Play</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Settings Menu Overlay */}
+            {showSettings && (
+                <SettingsMenu
+                    onClose={() => setShowSettings(false)}
+                    currentTracks={tracks}
+                    showStats={showStats}
+                    toggleStats={toggleStats}
+                    hwDec={hwDec}
+                    setHwDec={setHwDec}
+                    anime4K={anime4K}
+                    setAnime4K={setAnime4K}
+                    loopState={loopState}
+                    setLoopState={setLoopState}
+                />
+            )}
         </div>
     )
 }

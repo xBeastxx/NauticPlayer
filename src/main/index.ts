@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/NauticPlayerIcon.ico?asset'
@@ -79,6 +79,22 @@ ipcMain.on('close-window', () => {
   if (mainWindow) {
     mainWindow.close()
   }
+})
+
+ipcMain.handle('open-file-dialog', async () => {
+  if (mainWindow) {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'Media Files', extensions: ['mkv', 'mp4', 'avi', 'mov', 'webm', 'flv', 'wmv', 'mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    if (!canceled && filePaths.length > 0) {
+      return filePaths[0]
+    }
+  }
+  return null
 })
 
 // This method will be called when Electron has finished

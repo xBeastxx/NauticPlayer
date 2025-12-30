@@ -107,6 +107,11 @@ function connectToMpvSocket(mainWindow: BrowserWindow): void {
     sendCommand({ command: ['observe_property', 6, 'track-list'] })
     // Observe video dimensions for auto-resize
     sendCommand({ command: ['observe_property', 5, 'video-out-params'] })
+    
+    // Playback & Delays
+    sendCommand({ command: ['observe_property', 7, 'speed'] })
+    sendCommand({ command: ['observe_property', 8, 'audio-delay'] })
+    sendCommand({ command: ['observe_property', 9, 'sub-delay'] })
   })
   
   ipcSocket.on('data', (data) => {
@@ -147,6 +152,15 @@ function handleMpvMessage(msg: any, mainWindow: BrowserWindow): void {
       case 'volume':
         mainWindow.webContents.send('mpv-volume', msg.data)
         break
+      case 'speed':
+        mainWindow.webContents.send('mpv-speed', msg.data)
+        break
+      case 'audio-delay':
+        mainWindow.webContents.send('mpv-audio-delay', msg.data)
+        break
+      case 'sub-delay':
+        mainWindow.webContents.send('mpv-sub-delay', msg.data)
+        break
       case 'track-list':
         if (Array.isArray(msg.data)) {
            handleTrackListChange(msg.data, mainWindow)
@@ -183,7 +197,10 @@ function resizeWindowToVideo(mainWindow: BrowserWindow, videoW: number, videoH: 
 }
 
 function handleTrackListChange(tracks: any[], mainWindow: BrowserWindow) {
-  // If no tracks (idle), do nothing or clear filter. Don't show Auto-BG on startup.
+  // Always send track list to renderer so UI can update (Audio/Sub menus)
+  mainWindow.webContents.send('mpv-tracks', tracks)
+
+  // If no tracks (idle), do nothing else.
   if (tracks.length === 0) return
 
   const hasVideo = tracks.some(t => t.type === 'video')
@@ -243,11 +260,14 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
 
   // Shader Logic
   let shaderEnabled = false
-  ipcMain.on('mpv-toggle-shader', () => {
-    shaderEnabled = !shaderEnabled
+  ipcMain.on('mpv-toggle-shader', (_event, enable?: boolean) => {
+    if (typeof enable === 'boolean') {
+        shaderEnabled = enable
+    } else {
+        shaderEnabled = !shaderEnabled
+    }
     
     if (shaderEnabled) {
-      // Define shader preset (Standard Mode)
       const resourcesPath = is.dev ? join(process.cwd(), 'resources') : process.resourcesPath
       const shaderDir = join(resourcesPath, 'shaders')
       
@@ -257,8 +277,6 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
         join(shaderDir, 'Anime4K_Upscale_CNN_x2_UL.glsl')
       ]
       
-      // Join paths with specific separator depending on OS, but MPV usually takes ; or :
-      // On Windows ; is safe.
       const shaderString = shaders.join(';')
       
       console.log('Enabling Shaders (Ultra Quality):', shaderString)
@@ -269,6 +287,24 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
       sendCommand({ command: ['set_property', 'glsl-shaders', ''] })
       mainWindow.webContents.send('mpv-msg', 'Standard Quality')
     }
+  })
+
+  // === Generic Command Handler (Settings Menu) ===
+  ipcMain.on('mpv-command', (_event, args: any[]) => {
+      console.log('Generic Command:', args)
+      sendCommand({ command: args })
+  })
+
+  // === Settings Specifics ===
+  ipcMain.on('toggle-always-on-top', () => {
+      const isTop = mainWindow.isAlwaysOnTop()
+      mainWindow.setAlwaysOnTop(!isTop)
+  })
+
+  ipcMain.on('open-config-folder', () => {
+      const resourcesPath = is.dev ? join(process.cwd(), 'resources') : process.resourcesPath
+      const mpvConfDir = join(resourcesPath, 'mpv')
+      require('electron').shell.openPath(mpvConfDir)
   })
 
 
