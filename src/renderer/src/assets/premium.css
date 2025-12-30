@@ -72,3 +72,25 @@ input[type="range"]::-moz-range-thumb {
     border: none;
     box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
 }
+
+/* Corner Masking */
+.corner-mask {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+    /* Inner shadow vignette */
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    /* Subtle border */
+}
+
+/* 
+   Since we can't clip the native video window, 
+   we use a thick border hack or SVG mask if needed.
+   For now, a vignette helps hide the sharp edges.
+*/

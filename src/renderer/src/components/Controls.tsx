@@ -38,14 +38,15 @@ const formatTime = (seconds: number): string => {
 export default function Controls(): JSX.Element {
     // Playback State
     const [isPlaying, setIsPlaying] = useState(false)
-    const [currentTime, setCurrentTime] = useState(260) // 4:20 in seconds
-    const [duration, setDuration] = useState(765) // 12:45 in seconds
+    const [currentTime, setCurrentTime] = useState(0)
+    const [duration, setDuration] = useState(0)
+    const [mpvReady, setMpvReady] = useState(false)
 
     // Volume State
     const [showVolume, setShowVolume] = useState(false)
     const [isMuted, setIsMuted] = useState(false)
-    const [volume, setVolume] = useState(50)
-    const [prevVolume, setPrevVolume] = useState(50)
+    const [volume, setVolume] = useState(100)
+    const [prevVolume, setPrevVolume] = useState(100)
     const [isFullscreen, setIsFullscreen] = useState(false)
 
     // Drag State
@@ -54,30 +55,83 @@ export default function Controls(): JSX.Element {
     const timelineRef = useRef<HTMLDivElement>(null)
     const volumeRef = useRef<HTMLDivElement>(null)
 
-    const togglePlay = () => setIsPlaying(!isPlaying)
+    // === MPV Event Listeners ===
+    useEffect(() => {
+        const onMpvReady = () => {
+            console.log('MPV Ready!')
+            setMpvReady(true)
+        }
+
+        const onMpvTime = (_event: any, time: number) => {
+            if (!isDraggingTime) setCurrentTime(time)
+        }
+
+        const onMpvDuration = (_event: any, dur: number) => {
+            setDuration(dur)
+        }
+
+        const onMpvPaused = (_event: any, paused: boolean) => {
+            setIsPlaying(!paused)
+        }
+
+        const onMpvVolume = (_event: any, vol: number) => {
+            setVolume(vol)
+        }
+
+        ipcRenderer.on('mpv-ready', onMpvReady)
+        ipcRenderer.on('mpv-time', onMpvTime)
+        ipcRenderer.on('mpv-duration', onMpvDuration)
+        ipcRenderer.on('mpv-paused', onMpvPaused)
+        ipcRenderer.on('mpv-volume', onMpvVolume)
+
+        return () => {
+            ipcRenderer.removeListener('mpv-ready', onMpvReady)
+            ipcRenderer.removeListener('mpv-time', onMpvTime)
+            ipcRenderer.removeListener('mpv-duration', onMpvDuration)
+            ipcRenderer.removeListener('mpv-paused', onMpvPaused)
+            ipcRenderer.removeListener('mpv-volume', onMpvVolume)
+        }
+    }, [isDraggingTime])
+
+    // === Control Handlers ===
+    const togglePlay = () => {
+        ipcRenderer.send('mpv-toggle')
+    }
 
     const toggleMute = () => {
         if (isMuted) {
             setIsMuted(false)
-            setVolume(prevVolume > 0 ? prevVolume : 50)
+            const newVol = prevVolume > 0 ? prevVolume : 100
+            setVolume(newVol)
+            ipcRenderer.send('mpv-volume', newVol)
+            ipcRenderer.send('mpv-mute', false)
         } else {
             setPrevVolume(volume)
             setVolume(0)
             setIsMuted(true)
+            ipcRenderer.send('mpv-mute', true)
         }
     }
 
     // Timeline Drag Handlers
     const handleTimelineInteraction = (clientX: number) => {
-        if (!timelineRef.current) return
+        if (!timelineRef.current || duration === 0) return
         const rect = timelineRef.current.getBoundingClientRect()
         const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-        setCurrentTime(Math.round(percent * duration))
+        const newTime = percent * duration
+        setCurrentTime(newTime)
     }
 
     const handleTimelineMouseDown = (e: React.MouseEvent) => {
         setIsDraggingTime(true)
         handleTimelineInteraction(e.clientX)
+    }
+
+    const handleTimelineMouseUp = () => {
+        if (isDraggingTime) {
+            ipcRenderer.send('mpv-seek', currentTime)
+        }
+        setIsDraggingTime(false)
     }
 
     // Volume Drag Handlers
@@ -87,6 +141,7 @@ export default function Controls(): JSX.Element {
         const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
         const newVol = Math.round(percent * 100)
         setVolume(newVol)
+        ipcRenderer.send('mpv-volume', newVol)
         if (newVol > 0) setIsMuted(false)
         if (newVol === 0) setIsMuted(true)
     }
@@ -103,7 +158,7 @@ export default function Controls(): JSX.Element {
             if (isDraggingVolume) handleVolumeInteraction(e.clientX)
         }
         const handleMouseUp = () => {
-            setIsDraggingTime(false)
+            if (isDraggingTime) handleTimelineMouseUp()
             setIsDraggingVolume(false)
         }
 
@@ -115,9 +170,9 @@ export default function Controls(): JSX.Element {
             window.removeEventListener('mousemove', handleMouseMove)
             window.removeEventListener('mouseup', handleMouseUp)
         }
-    }, [isDraggingTime, isDraggingVolume])
+    }, [isDraggingTime, isDraggingVolume, currentTime])
 
-    const timePercent = (currentTime / duration) * 100
+    const timePercent = duration > 0 ? (currentTime / duration) * 100 : 0
     const noop = () => { }
 
     return (

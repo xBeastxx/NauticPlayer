@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { setupMpvController, quitMpv } from './mpvController'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -29,6 +30,10 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+    // Initialize MPV after window is shown
+    if (mainWindow) {
+      setupMpvController(mainWindow)
+    }
   })
 
   mainWindow.on('maximize', () => {

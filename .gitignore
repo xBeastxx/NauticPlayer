@@ -3,3 +3,8 @@ out/
 dist/
 .DS_Store
 *.log
+
+# Binaries
+resources/mpv/
+*.exe
+*.dll

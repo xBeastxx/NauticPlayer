@@ -12,6 +12,7 @@
   "dependencies": {
     "lucide-react": "^0.562.0",
     "mpv.js": "^0.3.0",
+    "node-mpv": "^1.5.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "yt-dlp-wrap": "^2.3.12"
