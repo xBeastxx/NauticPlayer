@@ -1,8 +1,9 @@
-import { useState, useEffect, DragEvent } from 'react'
+import { useState, useEffect, useRef, DragEvent } from 'react'
 import Player from './components/Player'
 import Controls from './components/Controls'
 import './assets/premium.css'
 import { Minus, X } from 'lucide-react'
+import appIcon from './assets/NauticPlayerIcon.ico'
 
 const { ipcRenderer } = (window as any).require('electron')
 
@@ -52,28 +53,25 @@ function App(): JSX.Element {
 
     // Auto-hide controls logic
     const [showControls, setShowControls] = useState(true)
-    let hideTimeout: NodeJS.Timeout | null = null
+    const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     const handleMouseMove = () => {
         setShowControls(true)
         document.body.style.cursor = 'default'
 
-        if (hideTimeout) clearTimeout(hideTimeout)
+        if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
 
-        hideTimeout = setTimeout(() => {
-            // Only hide if playing (logic will be handled by Controls sending playing state or assumption)
-            // Ideally we'd know if playing here. For now, we'll assume effectively always hide after 3s 
-            // EXCEPT if hovering interactive elements (handled by CSS hover usually, but logical hide is better)
+        hideTimeoutRef.current = setTimeout(() => {
             setShowControls(false)
             document.body.style.cursor = 'none'
-        }, 3000)
+        }, 1500) // Reduced to 1.5s for snappier feel
     }
 
     useEffect(() => {
         window.addEventListener('mousemove', handleMouseMove)
         return () => {
             window.removeEventListener('mousemove', handleMouseMove)
-            if (hideTimeout) clearTimeout(hideTimeout)
+            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
         }
     }, [])
 
@@ -110,23 +108,43 @@ function App(): JSX.Element {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    background: 'rgba(255,255,255,0.1)',
-                    backdropFilter: 'blur(10px)',
+                    // background: 'transparent', // Removed opacity/blur
+                    // backdropFilter: 'none',
+                    background: 'rgba(0,0,0,0.0)', // Totally transparent
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     zIndex: 500,
                     borderRadius: 'inherit',
-                    pointerEvents: 'none' // Crucial to prevent flickering
+                    pointerEvents: 'none',
+                    transition: 'all 0.2s ease'
                 }}>
                     <div style={{
-                        fontSize: '24px',
-                        fontWeight: 300,
-                        color: '#fff',
-                        textAlign: 'center'
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transform: 'scale(1.2)',
+                        transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
                     }}>
-                        <div style={{ fontSize: '48px', marginBottom: '10px' }}>📁</div>
-                        Drop to Play
+                        {/* App Icon for Drop Zone */}
+                        <div style={{
+                            marginBottom: '15px',
+                            filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))',
+                            transform: 'scale(1.1)'
+                        }}>
+                            <img src={appIcon} alt="Drop to play" style={{ width: '96px', height: '96px' }} />
+                        </div>
+                        <span style={{
+                            fontSize: '18px',
+                            fontWeight: 600,
+                            color: '#fff',
+                            textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+                            fontFamily: 'Inter, sans-serif',
+                            letterSpacing: '0.5px'
+                        }}>
+                            Drop File
+                        </span>
                     </div>
                 </div>
             )}

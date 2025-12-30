@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings } from 'lucide-react'
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music } from 'lucide-react'
 
 // Use window.require for Electron in Vite context
 const { ipcRenderer } = (window as any).require('electron')
@@ -47,6 +47,12 @@ export default function Controls(): JSX.Element {
     const [isMuted, setIsMuted] = useState(false)
     const [volume, setVolume] = useState(100)
     const [prevVolume, setPrevVolume] = useState(100)
+    // URL Input State
+    const [showUrlInput, setShowUrlInput] = useState(false)
+    const [streamUrl, setStreamUrl] = useState('')
+    const [isShaderOn, setIsShaderOn] = useState(false)
+    const [isVisualizerOn, setIsVisualizerOn] = useState(false)
+
     const [isFullscreen, setIsFullscreen] = useState(false)
 
     // Drag State
@@ -175,6 +181,17 @@ export default function Controls(): JSX.Element {
     const timePercent = duration > 0 ? (currentTime / duration) * 100 : 0
     const noop = () => { }
 
+    const handleUrlSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        if (streamUrl) {
+            ipcRenderer.send('mpv-load', streamUrl)
+            setShowUrlInput(false)
+            setStreamUrl('')
+        }
+    }
+
+    // ... (existing handlers)
+
     return (
         <div style={{
             position: 'absolute',
@@ -188,6 +205,52 @@ export default function Controls(): JSX.Element {
             zIndex: 50,
             pointerEvents: 'none'
         }}>
+            {/* Stream URL Input Overlay */}
+            {showUrlInput && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: '100px',
+                    background: 'rgba(0, 0, 0, 0.6)',
+                    backdropFilter: 'blur(10px)',
+                    padding: '15px',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    pointerEvents: 'auto',
+                    display: 'flex',
+                    gap: '10px',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                    animation: 'fadeIn 0.2s ease-out'
+                }}>
+                    <form onSubmit={handleUrlSubmit} style={{ display: 'flex', gap: '10px' }}>
+                        <input
+                            type="text"
+                            placeholder="Paste YouTube/Twitch URL..."
+                            value={streamUrl}
+                            onChange={(e) => setStreamUrl(e.target.value)}
+                            autoFocus
+                            style={{
+                                background: 'rgba(255,255,255,0.1)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '8px 12px',
+                                color: '#fff',
+                                width: '250px',
+                                outline: 'none',
+                                fontFamily: 'Inter, sans-serif'
+                            }}
+                        />
+                        <button type="submit" style={{
+                            background: '#fff',
+                            color: '#000',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '8px 16px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                        }}>Play</button>
+                    </form>
+                </div>
+            )}
 
             {/* Floating Timeline */}
             <div
@@ -207,7 +270,7 @@ export default function Controls(): JSX.Element {
                     marginBottom: '10px'
                 }}
             >
-                {/* Fill with glow */}
+                {/* ... (Timeline Content) ... */}
                 <div style={{
                     width: `${timePercent}%`,
                     height: '100%',
@@ -216,7 +279,6 @@ export default function Controls(): JSX.Element {
                     boxShadow: '0 0 10px rgba(255,255,255,0.5)'
                 }}></div>
 
-                {/* Knob */}
                 <div style={{
                     width: '12px',
                     height: '12px',
@@ -229,7 +291,6 @@ export default function Controls(): JSX.Element {
                     cursor: 'grab'
                 }}></div>
 
-                {/* Time Labels */}
                 <span style={{ position: 'absolute', left: -45, fontSize: '12px', fontFamily: 'Inter', opacity: 0.7 }}>{formatTime(currentTime)}</span>
                 <span style={{ position: 'absolute', right: -45, fontSize: '12px', fontFamily: 'Inter', opacity: 0.7 }}>{formatTime(duration)}</span>
             </div>
@@ -269,7 +330,6 @@ export default function Controls(): JSX.Element {
                                 marginLeft: '5px'
                             }}
                         >
-                            {/* Custom Volume Slider */}
                             <div
                                 ref={volumeRef}
                                 onMouseDown={handleVolumeMouseDown}
@@ -282,7 +342,6 @@ export default function Controls(): JSX.Element {
                                     cursor: 'pointer'
                                 }}
                             >
-                                {/* Fill with glow */}
                                 <div style={{
                                     width: `${volume}%`,
                                     height: '100%',
@@ -291,7 +350,6 @@ export default function Controls(): JSX.Element {
                                     boxShadow: '0 0 10px rgba(255,255,255,0.5)'
                                 }}></div>
 
-                                {/* Knob */}
                                 <div style={{
                                     width: '10px',
                                     height: '10px',
@@ -308,12 +366,14 @@ export default function Controls(): JSX.Element {
                         </div>
                     </div>
 
-                    <FloatingButton onClick={noop}><Monitor size={18} /></FloatingButton>
+                    <FloatingButton onClick={() => setShowUrlInput(!showUrlInput)}>
+                        <Globe size={18} color={showUrlInput ? "#fff" : "rgba(255,255,255,0.7)"} />
+                    </FloatingButton>
                 </div>
 
                 {/* Playback Controls */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <FloatingButton onClick={noop}><SkipBack size={24} fill="#fff" /></FloatingButton>
+                    <FloatingButton onClick={() => ipcRenderer.send('mpv-seek', currentTime - 10)}><SkipBack size={24} fill="#fff" /></FloatingButton>
 
                     <FloatingButton onClick={togglePlay} hero>
                         {isPlaying ? (
@@ -323,11 +383,18 @@ export default function Controls(): JSX.Element {
                         )}
                     </FloatingButton>
 
-                    <FloatingButton onClick={noop}><SkipForward size={24} fill="#fff" /></FloatingButton>
+                    <FloatingButton onClick={() => ipcRenderer.send('mpv-seek', currentTime + 10)}><SkipForward size={24} fill="#fff" /></FloatingButton>
                 </div>
+
 
                 {/* Right Tools */}
                 <div style={{ display: 'flex', gap: '15px' }}>
+                    <FloatingButton onClick={() => {
+                        ipcRenderer.send('mpv-toggle-shader')
+                        setIsShaderOn(!isShaderOn)
+                    }} >
+                        <Sparkles size={18} color={isShaderOn ? "#aaffaa" : "white"} />
+                    </FloatingButton>
                     <FloatingButton onClick={noop}><Settings size={18} /></FloatingButton>
                     <FloatingButton onClick={() => { ipcRenderer.send('toggle-fullscreen'); setIsFullscreen(!isFullscreen) }}>
                         {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}

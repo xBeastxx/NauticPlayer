@@ -18,12 +18,17 @@ export function setupMpvController(mainWindow: BrowserWindow): void {
   const windowHandle = mainWindow.getNativeWindowHandle()
   const wid = windowHandle.readBigInt64LE(0).toString()
   
-  // Path to mpv.exe
-  const mpvPath = is.dev 
-    ? join(process.cwd(), 'resources', 'mpv', 'mpv.exe')
-    : join(process.resourcesPath, 'mpv', 'mpv.exe')
+  // Path to mpv.exe and bin folder (for yt-dlp/ffmpeg)
+  const resourcesPath = is.dev 
+    ? join(process.cwd(), 'resources')
+    : process.resourcesPath
+
+  const mpvPath = join(resourcesPath, 'mpv', 'mpv.exe')
+  const binPath = join(resourcesPath, 'bin')
+  const ytdlPath = join(binPath, 'yt-dlp.exe')
   
   console.log('MPV Path:', mpvPath)
+  console.log('Bin Path:', binPath)
   console.log('Window ID:', wid)
   
   // MPV arguments for embedded playback
@@ -40,15 +45,25 @@ export function setupMpvController(mainWindow: BrowserWindow): void {
     '--input-vo-keyboard=no',
     '--vo=gpu',
     '--hwdec=auto',
-    '--panscan=1.0', // Zoom to fill - eliminates tiny gaps/borders if aspect ratio has minor mismatch
+    '--panscan=1.0', // Zoom to fill
     '--image-display-duration=inf',
-    '--loop-file=inf' // Loop for testing
+    '--loop-file=inf', // Loop for testing
+    // Stream Integration
+    `--script-opts=ytdl_hook-ytdl_path=${ytdlPath}`,
+    '--ytdl-raw-options=format=bestvideo+bestaudio/best'
   ]
   
+  // Extend PATH to include bin folder (for mpv/yt-dlp to find ffmpeg)
+  const env = { 
+    ...process.env, 
+    PATH: `${binPath};${process.env.PATH}` 
+  }
+
   // Spawn MPV process
   mpvProcess = spawn(mpvPath, args, {
     stdio: ['pipe', 'pipe', 'pipe'],
-    windowsHide: true
+    windowsHide: true,
+    env // Pass updated environment
   })
   
   mpvProcess.on('error', (err) => {
@@ -89,6 +104,7 @@ function connectToMpvSocket(mainWindow: BrowserWindow): void {
     sendCommand({ command: ['observe_property', 2, 'duration'] })
     sendCommand({ command: ['observe_property', 3, 'pause'] })
     sendCommand({ command: ['observe_property', 4, 'volume'] })
+    sendCommand({ command: ['observe_property', 6, 'track-list'] })
     // Observe video dimensions for auto-resize
     sendCommand({ command: ['observe_property', 5, 'video-out-params'] })
   })
@@ -131,6 +147,11 @@ function handleMpvMessage(msg: any, mainWindow: BrowserWindow): void {
       case 'volume':
         mainWindow.webContents.send('mpv-volume', msg.data)
         break
+      case 'track-list':
+        if (Array.isArray(msg.data)) {
+           handleTrackListChange(msg.data, mainWindow)
+        }
+        break
       case 'video-out-params':
         if (msg.data && msg.data.w && msg.data.h) {
           resizeWindowToVideo(mainWindow, msg.data.w, msg.data.h)
@@ -161,11 +182,32 @@ function resizeWindowToVideo(mainWindow: BrowserWindow, videoW: number, videoH: 
   mainWindow.setSize(currentBounds.width, newHeight, true)
 }
 
-function sendCommand(cmd: any): void {
-  if (ipcSocket && ipcSocket.writable) {
-    ipcSocket.write(JSON.stringify(cmd) + '\n')
+function handleTrackListChange(tracks: any[], mainWindow: BrowserWindow) {
+  const hasVideo = tracks.some(t => t.type === 'video')
+  
+  if (!hasVideo) {
+    console.log('Audio-only detected. Applying Custom Background...')
+    const resourcesPath = is.dev ? join(process.cwd(), 'resources') : process.resourcesPath
+    // Escape backslashes for MPV filter string
+    const bgPath = join(resourcesPath, 'images', 'FondoMusic-.png').replaceAll('\\', '/').replaceAll(':', '\\:')
+    
+    // Filter: Movie -> Scale (400px width) -> Overlay on Black (1280x720)
+    // format=rgba ensures alpha is handled, then overlaying on black kills the checkerboard
+    const complexFilter = `movie='${bgPath}'[logo];[logo]scale=400:-1[small];color=c=black:s=1280x720[bg];[bg][small]overlay=(W-w)/2:(H-h)/2[vo]`
+    
+    sendCommand({ command: ['set_property', 'lavfi-complex', complexFilter] })
+    mainWindow.webContents.send('mpv-msg', '🎵 Audio Mode')
+  } else {
+    // If video exists, clear any custom background
+    // But be careful not to clear if it's just normal video playback?
+    // Actually, if we switch files, we should probably reset lavfi-complex?
+    // MPV usually resets lavfi-complex on file load? check keep-open.
+    // Explicitly clearing it if we detect video is safer.
+    sendCommand({ command: ['set_property', 'lavfi-complex', ''] })
   }
 }
+
+
 
 function setupIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.on('mpv-load', (_event, filePath: string) => {
@@ -195,6 +237,38 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.on('mpv-mute', (_event, muted: boolean) => {
     sendCommand({ command: ['set_property', 'mute', muted] })
   })
+
+  // Shader Logic
+  let shaderEnabled = false
+  ipcMain.on('mpv-toggle-shader', () => {
+    shaderEnabled = !shaderEnabled
+    
+    if (shaderEnabled) {
+      // Define shader preset (Standard Mode)
+      const resourcesPath = is.dev ? join(process.cwd(), 'resources') : process.resourcesPath
+      const shaderDir = join(resourcesPath, 'shaders')
+      
+      const shaders = [
+        join(shaderDir, 'Anime4K_Clamp_Highlights.glsl'),
+        join(shaderDir, 'Anime4K_Restore_CNN_UL.glsl'),
+        join(shaderDir, 'Anime4K_Upscale_CNN_x2_UL.glsl')
+      ]
+      
+      // Join paths with specific separator depending on OS, but MPV usually takes ; or :
+      // On Windows ; is safe.
+      const shaderString = shaders.join(';')
+      
+      console.log('Enabling Shaders (Ultra Quality):', shaderString)
+      sendCommand({ command: ['set_property', 'glsl-shaders', shaderString] })
+      mainWindow.webContents.send('mpv-msg', '✨ Anime4K Enhanced')
+    } else {
+      console.log('Disabling Shaders')
+      sendCommand({ command: ['set_property', 'glsl-shaders', ''] })
+      mainWindow.webContents.send('mpv-msg', 'Standard Quality')
+    }
+  })
+
+
 }
 
 export function quitMpv(): void {
@@ -206,5 +280,15 @@ export function quitMpv(): void {
   if (mpvProcess) {
     mpvProcess.kill()
     mpvProcess = null
+  }
+}
+
+function sendCommand(data: Record<string, any>): void {
+  if (ipcSocket && !ipcSocket.destroyed) {
+    const json = JSON.stringify(data)
+    console.log('[IPC-SEND]', json) // Log all sent commands
+    ipcSocket.write(json + '\n')
+  } else {
+    console.warn('[IPC-FAIL] Socket not ready or destroyed', data)
   }
 }
