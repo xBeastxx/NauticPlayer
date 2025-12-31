@@ -3,7 +3,7 @@
 **Last Updated:** December 2025
 
 ## 1. Introduction
-Welcome to NauticPlayer, a premium media player software. By purchasing, downloading, or using this software, you agree to these Terms and Conditions.
+Welcome to NauticPlayer, a premium media player software developed by Manuel Perez Rodriguez (NauticGames). By purchasing, downloading, or using this software, you agree to these Terms and Conditions.
 
 ## 2. Commercial License
 NauticPlayer is a paid, proprietary software product.

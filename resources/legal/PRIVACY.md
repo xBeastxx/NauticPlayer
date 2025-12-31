@@ -3,7 +3,7 @@
 **Last Updated:** December 2025
 
 ## 1. Introduction
-NauticPlayer respects your privacy. This application is designed to run locally on your machine.
+NauticPlayer, developed by Manuel Perez Rodriguez (NauticGames), respects your privacy. This application is designed to run locally on your machine.
 
 ## 2. Data Collection
 We do **not** collect, store, or transmit your personal data to our servers.

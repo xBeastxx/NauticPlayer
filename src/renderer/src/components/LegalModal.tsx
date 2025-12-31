@@ -128,7 +128,7 @@ export default function LegalModal({ filename, title, onClose }: LegalModalProps
                     {renderContent(content)}
 
                     <div style={{ marginTop: '50px', textAlign: 'center', fontSize: '13px', color: 'rgba(255,255,255,0.3)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
-                        NauticPlayer Legal Information &bull; 2024
+                        NauticPlayer Legal Information &bull; &copy; 2024 NauticGames&trade;
                     </div>
                 </div>
             </div>

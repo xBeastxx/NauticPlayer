@@ -579,6 +579,12 @@ export default function SettingsMenu({
                                         >
                                             EULA
                                         </button>
+                                        <button
+                                            onClick={() => setLegalDoc({ file: 'CREDITS.md', title: 'Open Source Credits' })}
+                                            style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
+                                        >
+                                            Credits
+                                        </button>
                                     </div>
                                 </SettingItem>
 
@@ -593,7 +599,7 @@ export default function SettingsMenu({
                             </div>
 
                             <div style={{ marginTop: 'auto', paddingTop: '40px', fontSize: '11px', color: 'rgba(255,255,255,0.2)', textAlign: 'center' }}>
-                                NauticPlayer Build v1.0.2 &bull; Powered by mpv
+                                NauticPlayer v1.0.2 &bull; by NauticGames&trade;
                             </div>
                         </>
                     )
