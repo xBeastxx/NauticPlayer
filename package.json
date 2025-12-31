@@ -3,6 +3,10 @@
   "version": "1.0.2",
   "description": "A modern media player for Windows",
   "author": "NauticGames",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xBeastxx/NauticPlayer.git"
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -12,11 +16,11 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "fast-fuzzy": "^1.12.0",
     "fuzzysort": "^3.1.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
-
     "node-html-parser": "^7.0.1",
     "opensubtitles-api": "^5.1.2",
     "react": "^18.2.0",

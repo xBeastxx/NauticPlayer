@@ -28,3 +28,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "NauticPlayer"
+
+publish:
+  provider: github
+  owner: xBeastxx
+  repo: NauticPlayer
