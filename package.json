@@ -1,6 +1,6 @@
 {
   "name": "nautic-player",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A modern media player for Windows",
   "author": "NauticGames",
   "main": "./out/main/index.js",
