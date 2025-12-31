@@ -23,12 +23,13 @@ interface SettingsMenuProps {
     alwaysOnTop: boolean;
     setAlwaysOnTop: (val: boolean) => void;
     filename?: string;
+    isPlaying: boolean;
 }
 
 export default function SettingsMenu({
     onClose, currentTracks, showStats, toggleStats,
     hwDec, setHwDec, anime4K, setAnime4K, loopState, setLoopState,
-    alwaysOnTop, setAlwaysOnTop, filename
+    alwaysOnTop, setAlwaysOnTop, filename, isPlaying
 }: SettingsMenuProps): JSX.Element {
     const [activeTab, setActiveTab] = useState<'video' | 'audio' | 'subs' | 'playback' | 'general' | 'online'>('video')
 
@@ -122,11 +123,11 @@ export default function SettingsMenu({
     }
 
     const setAudioTrack = (id: number) => {
-        ipcRenderer.send('mpv-command', ['set_property', 'aid', id])
+        ipcRenderer.send('mpv-set-audio', id)
     }
 
     const setSubTrack = (id: number | string) => {
-        ipcRenderer.send('mpv-command', ['set_property', 'sid', id])
+        ipcRenderer.send('mpv-set-sub', id)
     }
 
     const adjustAudioDelay = (val: number) => {
@@ -226,8 +227,8 @@ export default function SettingsMenu({
                 width: '700px', // Wider
                 height: '420px', // Height
                 maxHeight: '80vh',
-                background: 'rgba(0, 0, 0, 0.9)', // Pure black
-                backdropFilter: 'blur(30px)',
+                backgroundColor: '#0a0a0a', // Near black to avoid Windows transparency key bug
+                backdropFilter: 'none',
                 borderRadius: '24px',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
                 boxShadow: '0 40px 80px rgba(0, 0, 0, 0.6)',
@@ -556,6 +557,29 @@ export default function SettingsMenu({
                                     <Toggle checked={alwaysOnTop} onChange={toggleAlwaysOnTop} />
                                 </SettingItem>
 
+                                <SettingItem label="Legal Information" description="View license agreements and privacy policy.">
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <button
+                                            onClick={() => ipcRenderer.send('open-external', 'resources/licenses/TERMS.txt')}
+                                            style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
+                                        >
+                                            Terms
+                                        </button>
+                                        <button
+                                            onClick={() => ipcRenderer.send('open-external', 'resources/licenses/PRIVACY.txt')}
+                                            style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
+                                        >
+                                            Privacy
+                                        </button>
+                                        <button
+                                            onClick={() => ipcRenderer.send('open-external', 'resources/licenses/EULA.txt')}
+                                            style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
+                                        >
+                                            EULA
+                                        </button>
+                                    </div>
+                                </SettingItem>
+
                                 <div style={{ marginTop: '25px', display: 'flex', gap: '10px' }}>
                                     <button onClick={openConfig} style={actionButtonStyle}>
                                         <FileVideo size={16} /> Open MPV Folder
@@ -574,7 +598,7 @@ export default function SettingsMenu({
                 <div style={{ marginTop: 'auto', paddingTop: '40px', fontSize: '11px', color: 'rgba(255,255,255,0.2)', textAlign: 'center' }}>
                     NauticPlayer Build v1.0.2 &bull; Powered by mpv
                 </div>
-            </div>
+            </div >
 
             <button
                 onClick={onClose}
@@ -689,6 +713,7 @@ const CustomSelect = ({ options, value, onChange, placeholder }: any) => {
                 backdropFilter: 'blur(10px)'
             }}
             className="custom-scroll"
+            data-dropdown-portal="true"
         >
             {options.length === 0 ? (
                 <div style={{ padding: '12px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>No options available</div>

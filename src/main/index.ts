@@ -99,6 +99,16 @@ ipcMain.handle('open-file-dialog', async () => {
   return null
 })
 
+ipcMain.on('open-external', (_event, relativePath: string) => {
+  const resourcesPath = is.dev ? join(process.cwd(), 'resources') : process.resourcesPath
+  const fullPath = relativePath.includes('resources') 
+      ? join(process.cwd(), relativePath) 
+      : join(resourcesPath, relativePath)
+      
+  console.log('Opening external:', fullPath)
+  shell.openPath(fullPath)
+})
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.

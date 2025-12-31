@@ -1,0 +1,30 @@
+appId: com.nautic.player
+productName: NauticPlayer
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - "**/*" 
+  - "!**/*.ts"
+  - "!*.map"
+  - "!package-lock.json"
+  - "!node_modules/@types"
+
+extraResources:
+  - from: "resources/"
+    to: "."
+    filter:
+      - "**/*"
+
+win:
+  target: nsis
+  icon: resources/NauticPlayerIcon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: true
+  license: resources/licenses/EULA.txt
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "NauticPlayer"

@@ -114,6 +114,9 @@ function connectToMpvSocket(mainWindow: BrowserWindow): void {
     sendCommand({ command: ['observe_property', 9, 'sub-delay'] })
     // Metadata
     sendCommand({ command: ['observe_property', 10, 'filename'] })
+    // Active Tracks
+    sendCommand({ command: ['observe_property', 11, 'aid'] })
+    sendCommand({ command: ['observe_property', 12, 'sid'] })
   })
   
   ipcSocket.on('data', (data) => {
@@ -168,6 +171,12 @@ function handleMpvMessage(msg: any, mainWindow: BrowserWindow): void {
            handleTrackListChange(msg.data, mainWindow)
         }
         break
+      // Fix: Refresh track list when active track changes
+      case 'aid':
+      case 'sid':
+          console.log(`Property ${msg.name} changed. Refreshing track list...`)
+          sendCommand({ command: ['get_property', 'track-list'] })
+          break
       case 'video-out-params':
         if (msg.data && msg.data.w && msg.data.h) {
           resizeWindowToVideo(mainWindow, msg.data.w, msg.data.h)
@@ -224,15 +233,9 @@ function handleTrackListChange(tracks: any[], mainWindow: BrowserWindow) {
     mainWindow.webContents.send('mpv-msg', '🎵 Audio Mode')
   } else {
     // If video exists, clear any custom background
-    // But be careful not to clear if it's just normal video playback?
-    // Actually, if we switch files, we should probably reset lavfi-complex?
-    // MPV usually resets lavfi-complex on file load? check keep-open.
-    // Explicitly clearing it if we detect video is safer.
     sendCommand({ command: ['set_property', 'lavfi-complex', ''] })
   }
 }
-
-
 
 function setupIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.on('mpv-load', (_event, filePath: string) => {
@@ -252,7 +255,7 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
   })
   
   ipcMain.on('mpv-seek', (_event, seconds: number) => {
-    sendCommand({ command: ['seek', seconds, 'relative'] })
+    sendCommand({ command: ['seek', seconds, 'absolute'] })
   })
   
   ipcMain.on('mpv-playpause', () => {
@@ -311,6 +314,20 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
     }
   })
 
+  // === Track Selection (Forced Update) ===
+  ipcMain.on('mpv-set-audio', (_event, id: number) => {
+    // Ensure ID is a number
+    const numId = parseInt(String(id), 10)
+    console.log('Setting Audio Track ID:', numId)
+    sendCommand({ command: ['set_property', 'aid', numId] })
+  })
+
+  ipcMain.on('mpv-set-sub', (_event, id: number | string) => {
+    console.log('Setting Sub Track ID:', id) 
+    // Sub ID can be 'no' (string) or number
+    sendCommand({ command: ['set_property', 'sid', id] })
+  })
+
   // === Generic Command Handler (Settings Menu) ===
   ipcMain.on('mpv-command', (_event, args: any[]) => {
       console.log('Generic Command:', args)
@@ -332,6 +349,8 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.on('mpv-update-ytdl', () => {
     updateYtdl(mainWindow, false)
   })
+
+
 
 
 }

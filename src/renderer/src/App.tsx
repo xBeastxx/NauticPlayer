@@ -206,7 +206,7 @@ function App(): JSX.Element {
                 overflow: 'hidden',
                 position: 'relative',
                 borderRadius: '0',
-                background: hasStarted ? 'transparent' : 'rgba(0, 0, 0, 0.7)',
+                background: hasStarted ? 'rgba(0, 0, 0, 0.01)' : 'rgba(0, 0, 0, 0.7)',
                 backdropFilter: hasStarted ? 'none' : 'blur(20px)',
                 boxShadow: 'none',
             }}
@@ -295,8 +295,8 @@ function App(): JSX.Element {
                 left: 0,
                 width: '100%',
                 height: '40px',
-                zIndex: 100,
-                WebkitAppRegion: showControls ? 'drag' : 'no-drag'
+                zIndex: 700, // Above overlay (600), below controls (800)
+                WebkitAppRegion: 'drag'
             } as any}></div>
 
             {/* Window Controls (Top Right) */}
@@ -306,7 +306,7 @@ function App(): JSX.Element {
                 right: '15px',
                 display: 'flex',
                 gap: '8px',
-                zIndex: 200,
+                zIndex: 800, // Ensure controls differ from overlay (600) so they remain clickable
                 WebkitAppRegion: 'no-drag',
                 opacity: showControls ? 1 : 0,
                 transition: 'opacity 0.5s ease',
@@ -356,6 +356,12 @@ function App(): JSX.Element {
 
             {/* Overlay UI */}
             <div style={{
+                position: 'absolute', // Changed to absolute to fill the container properly
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 600, // Ensure it sits above Welcome Screen (400) and Window Controls (200)
                 opacity: showControls ? 1 : 0,
                 transition: 'opacity 0.5s ease',
                 pointerEvents: showControls ? 'auto' : 'none'

@@ -1,0 +1,22 @@
+PRIVACY POLICY
+
+Last Updated: December 2025
+
+1. INTRODUCTION
+NauticPlayer respects your privacy. This application is designed to run locally on your machine.
+
+2. DATA COLLECTION
+We do NOT collect, store, or transmit your personal data to our servers.
+- Playback History: Stored locally on your device.
+- Settings: Stored locally in config.json.
+
+3. THIRD-PARTY SERVICES
+The application interacts with specific third-party APIs only when requested by you:
+- OpenSubtitles: When searching for subtitles, your search query and file hash are sent to OpenSubtitles.com API.
+- Video Platforms (e.g., YouTube): When streaming, data is exchanged directly between your device and the content provider via yt-dlp.
+
+4. ANALYTICS
+No tracking cookies or analytics software are embedded in this application.
+
+5. CONTACT
+For privacy concerns, please contact the developer or open an issue on our official support channel.

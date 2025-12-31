@@ -230,8 +230,9 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
                 const isClickInsideMenu = settingsMenuRef.current?.contains(e.target as Node)
                 const isClickOnButton = settingsButtonRef.current?.contains(e.target as Node) ||
                     (document.querySelector('[data-settings-button]')?.contains(e.target as Node))
+                const isClickInPortal = (e.target as Element).closest('[data-dropdown-portal]')
 
-                if (!isClickInsideMenu && !isClickOnButton) {
+                if (!isClickInsideMenu && !isClickOnButton && !isClickInPortal) {
                     setShowSettings(false)
                 }
             }
@@ -243,6 +244,9 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
 
     useEffect(() => {
         const handleWheel = (e: WheelEvent) => {
+            // Prevent volume change if menus are open or nothing is playing
+            if (showSettings || showUrlInput || !isPlaying) return
+
             if (e.deltaY < 0) {
                 // Scroll Up - Increase Volume
                 ipcRenderer.send('mpv-volume', 5)
@@ -254,7 +258,7 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
 
         window.addEventListener('wheel', handleWheel)
         return () => window.removeEventListener('wheel', handleWheel)
-    }, [])
+    }, [showSettings, showUrlInput, isPlaying])
 
     const handleUrlSubmit = (e: React.FormEvent) => {
         e.preventDefault()
@@ -522,6 +526,7 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
                         filename={filename}
                         alwaysOnTop={alwaysOnTop}
                         setAlwaysOnTop={setAlwaysOnTop}
+                        isPlaying={isPlaying}
                     />
                 </div>
             )}
