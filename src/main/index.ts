@@ -17,8 +17,8 @@ function createWindow(): void {
   
   // 1. Create the browser window (Transparent + UI + Video Host)
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 700,
+    height: 450,
     minWidth: 400,
     minHeight: 300,
     show: false,
@@ -57,6 +57,20 @@ function createWindow(): void {
     // Reset loop state to none on startup
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('mpv-update-loop', 'none')
+        
+        // Check for startup file (CLI Arg / Open With)
+        if (!is.dev) {
+            // Production: argv[1] is usually the file path if present
+            const args = process.argv
+            const startupFile = args.find((arg, index) => index >= 1 && !arg.startsWith('--'))
+            if (startupFile) {
+                logger.log('[MAIN] Startup File Detected:', startupFile)
+                // Use a small timeout to ensure React is fully ready to receive
+                setTimeout(() => {
+                    mainWindow?.webContents.send('mpv-load-file', startupFile)
+                }, 1000)
+            }
+        }
     }
   })
 
@@ -114,7 +128,29 @@ ipcMain.handle('open-file-dialog', async () => {
     return filePaths[0]
 })
 
-// ... Global App Logic ...
+ipcMain.handle('get-legal-content', async (_event, filename: string) => {
+    try {
+        const resourcesPath = is.dev 
+            ? join(__dirname, '../../resources/legal') 
+            : join(process.resourcesPath, 'legal') // Correct path for packaged app (extraResources)
+        
+        // Try alternate path if first fails (common issue in prod vs dev)
+        let filePath = join(resourcesPath, filename)
+        
+        // Simple sanitization
+        if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+            throw new Error('Invalid filename')
+        }
+
+        const data = await import('fs').then(fs => fs.promises.readFile(filePath, 'utf-8'))
+        return data
+    } catch (error) {
+        logger.error('[MAIN] Failed to read legal doc:', error)
+        return '# Error\nCould not load document.'
+    }
+})
+
+  // ... Global App Logic ...
 app.whenReady().then(() => {
   logger.log('[APP] Electron app is ready')
   electronApp.setAppUserModelId('com.electron') // Fixed ID
@@ -123,6 +159,30 @@ app.whenReady().then(() => {
       // No DevTools auto-open
       optimizer.watchWindowShortcuts(window)
   })
+
+  // Single Instance Lock
+  const gotTheLock = app.requestSingleInstanceLock()
+  if (!gotTheLock) {
+    app.quit()
+    return
+  } else {
+    app.on('second-instance', (_event, commandLine, _workingDirectory) => {
+      // Someone tried to run a second instance, we should focus our window.
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore()
+        mainWindow.focus()
+        
+        // Handle file open from second instance
+        const file = commandLine.find(arg => arg.endsWith('.mkv') || arg.endsWith('.mp4') || arg.endsWith('.avi') || arg.endsWith('.mov') || arg.endsWith('.webm'))
+        // Or cleaner: take last arg if it's not a flag? simple heuristic for now:
+        const potentialFile = commandLine[commandLine.length - 1]
+        if (potentialFile && !potentialFile.startsWith('--') && potentialFile !== '.') {
+             logger.log('[MAIN] Second Instance File:', potentialFile)
+             mainWindow.webContents.send('mpv-load-file', potentialFile)
+        }
+      }
+    })
+  }
 
   createWindow()
 

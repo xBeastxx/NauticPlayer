@@ -48,9 +48,17 @@ function App(): JSX.Element {
             setFilename(name)
         })
 
+        // Listen for files opened via CLI/Open With
+        ipcRenderer.on('mpv-load-file', (_: any, filePath: string) => {
+            console.log('CLI Open File:', filePath)
+            ipcRenderer.send('mpv-load', filePath)
+            setHasLoadedFile(true)
+        })
+
         return () => {
             ipcRenderer.removeListener('mpv-msg', onMpvMsg)
             ipcRenderer.removeAllListeners('mpv-filename')
+            ipcRenderer.removeAllListeners('mpv-load-file')
         }
     }, [])
 
@@ -88,6 +96,7 @@ function App(): JSX.Element {
     // Auto-hide controls logic
     const [showControls, setShowControls] = useState(true)
     const [showSettings, setShowSettings] = useState(false) // Lifted state
+    const [isHoveringControls, setIsHoveringControls] = useState(false)
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const [subDelay, setSubDelay] = useState(0) // Track subtitle delay
@@ -98,13 +107,26 @@ function App(): JSX.Element {
 
         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
 
-        hideTimeoutRef.current = setTimeout(() => {
-            if (!showSettings) { // Only hide if settings are closed
+        // Only schedule hide if NOT hovering controls
+        if (!isHoveringControls && !showSettings) {
+            hideTimeoutRef.current = setTimeout(() => {
                 setShowControls(false)
                 document.body.style.cursor = 'none'
-            }
-        }, 1500)
+            }, 1500)
+        }
     }
+
+    // Effect to cancel/restart timeout when hover state changes
+    useEffect(() => {
+        if (isHoveringControls) {
+            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
+            setShowControls(true)
+            document.body.style.cursor = 'default'
+        } else {
+            // Resume hiding logic if mouse stops moving
+            handleMouseMove()
+        }
+    }, [isHoveringControls])
 
     // Listen for sub-delay changes from MPV
     useEffect(() => {
@@ -177,12 +199,34 @@ function App(): JSX.Element {
 
         window.addEventListener('keydown', handleKeyDown)
 
+        // Mouse Wheel Volume Control
+        const handleWheel = (e: WheelEvent) => {
+            // Allow scrolling in modals/settings if the target is within a scrollable container
+            const target = e.target as HTMLElement;
+            if (target.closest('.custom-scroll')) {
+                return; // Let default scroll happen
+            }
+
+            e.preventDefault();
+
+            // Debounce or threshold could be useful, but mpv handles rapid volume changes well.
+            if (e.deltaY < 0) {
+                // Scroll Up -> Volume Up
+                ipcRenderer.send('mpv-command', ['add', 'volume', 5]);
+            } else if (e.deltaY > 0) {
+                // Scroll Down -> Volume Down
+                ipcRenderer.send('mpv-command', ['add', 'volume', -5]);
+            }
+        };
+
+        window.addEventListener('wheel', handleWheel, { passive: false });
+
         return () => {
             window.removeEventListener('mousemove', handleMouseMove)
             window.removeEventListener('keydown', handleKeyDown)
-            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
+            window.removeEventListener('wheel', handleWheel);
         }
-    }, [showSettings, subDelay]) // Re-bind capability if needed, or better yet, use ref for showSettings or just rely on state closure if we used a ref. 
+    }, [showSettings, subDelay, isHoveringControls]) // Fixed stale closure 
     // actually handleMouseMove captures the scope variable. 'showSettings' will be stale in the timeout if we don't be careful.
     // Better to use a ref for showSettings or recreate the handler.
     // Simplest is to add showSettings to dependency array.
@@ -392,7 +436,13 @@ function App(): JSX.Element {
                 transition: 'opacity 0.5s ease',
                 pointerEvents: showControls ? 'auto' : 'none'
             }}>
-                <Controls showSettings={showSettings} setShowSettings={setShowSettings} filename={filename} />
+                <Controls
+                    showSettings={showSettings}
+                    setShowSettings={setShowSettings}
+                    filename={filename}
+                    onMouseEnter={() => setIsHoveringControls(true)}
+                    onMouseLeave={() => setIsHoveringControls(false)}
+                />
             </div>
 
             {/* Toast Notification */}

@@ -38,7 +38,7 @@ const formatTime = (seconds: number): string => {
 
 // ... imports
 
-export default function Controls({ showSettings, setShowSettings, filename }: any): JSX.Element {
+export default function Controls({ showSettings, setShowSettings, filename, onMouseEnter, onMouseLeave }: any): JSX.Element {
     // Playback State
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
@@ -250,23 +250,7 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
         return () => document.removeEventListener('click', handleClickOutside)
     }, [showUrlInput, showSettings])
 
-    useEffect(() => {
-        const handleWheel = (e: WheelEvent) => {
-            // Prevent volume change if menus are open or nothing is playing
-            if (showSettings || showUrlInput || !isPlaying) return
-
-            if (e.deltaY < 0) {
-                // Scroll Up - Increase Volume
-                ipcRenderer.send('mpv-volume', 5)
-            } else {
-                // Scroll Down - Decrease Volume
-                ipcRenderer.send('mpv-volume', -5)
-            }
-        }
-
-        window.addEventListener('wheel', handleWheel)
-        return () => window.removeEventListener('wheel', handleWheel)
-    }, [showSettings, showUrlInput, isPlaying])
+    // Wheel listener removed (moved to App.tsx)
 
     const handleUrlSubmit = (e: React.FormEvent) => {
         e.preventDefault()
@@ -356,6 +340,8 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
             <div
                 ref={timelineRef}
                 onMouseDown={handleTimelineMouseDown}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
                 style={{
                     width: '60%',
                     maxWidth: '600px',
@@ -396,7 +382,11 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
             </div>
 
             {/* Floating Buttons Cluster */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '30px' }}>
+            <div
+                style={{ display: 'flex', alignItems: 'center', gap: '30px' }}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+            >
 
                 {/* Left Tools */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>

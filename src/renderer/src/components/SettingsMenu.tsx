@@ -6,6 +6,8 @@ import {
     Search, Download, Globe, Link
 } from 'lucide-react'
 
+import LegalModal from './LegalModal'
+
 const { ipcRenderer } = (window as any).require('electron')
 
 interface SettingsMenuProps {
@@ -13,7 +15,6 @@ interface SettingsMenuProps {
     currentTracks: any[];
     showStats: boolean;
     toggleStats: () => void;
-    // Persisted Props
     hwDec: boolean;
     setHwDec: (val: boolean) => void;
     anime4K: boolean;
@@ -32,6 +33,7 @@ export default function SettingsMenu({
     alwaysOnTop, setAlwaysOnTop, filename, isPlaying
 }: SettingsMenuProps): JSX.Element {
     const [activeTab, setActiveTab] = useState<'video' | 'audio' | 'subs' | 'playback' | 'general' | 'online'>('video')
+    const [legalDoc, setLegalDoc] = useState<{ file: string, title: string } | null>(null) // Legal Modal State
 
     // Video States (Lifted)
     // Audio States
@@ -224,9 +226,9 @@ export default function SettingsMenu({
                 bottom: '15px', // Lowered further
                 left: '50%',
                 transform: 'translateX(-50%)',
-                width: '700px', // Wider
-                height: '420px', // Height
-                maxHeight: '80vh',
+                width: 'min(700px, 90vw)',
+                height: 'min(500px, 85vh)',
+                maxHeight: '85vh',
                 backgroundColor: '#0a0a0a', // Near black to avoid Windows transparency key bug
                 backdropFilter: 'none',
                 borderRadius: '24px',
@@ -560,19 +562,19 @@ export default function SettingsMenu({
                                 <SettingItem label="Legal Information" description="View license agreements and privacy policy.">
                                     <div style={{ display: 'flex', gap: '10px' }}>
                                         <button
-                                            onClick={() => ipcRenderer.send('open-external', 'resources/licenses/TERMS.txt')}
+                                            onClick={() => setLegalDoc({ file: 'TERMS.md', title: 'Terms of Service' })}
                                             style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
                                         >
                                             Terms
                                         </button>
                                         <button
-                                            onClick={() => ipcRenderer.send('open-external', 'resources/licenses/PRIVACY.txt')}
+                                            onClick={() => setLegalDoc({ file: 'PRIVACY.md', title: 'Privacy Policy' })}
                                             style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
                                         >
                                             Privacy
                                         </button>
                                         <button
-                                            onClick={() => ipcRenderer.send('open-external', 'resources/licenses/EULA.txt')}
+                                            onClick={() => setLegalDoc({ file: 'EULA.txt', title: 'End User License Agreement' })}
                                             style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
                                         >
                                             EULA
@@ -589,41 +591,47 @@ export default function SettingsMenu({
                                     </button>
                                 </div>
                             </div>
+
+                            <div style={{ marginTop: 'auto', paddingTop: '40px', fontSize: '11px', color: 'rgba(255,255,255,0.2)', textAlign: 'center' }}>
+                                NauticPlayer Build v1.0.2 &bull; Powered by mpv
+                            </div>
                         </>
                     )
                 }
 
+                <button
+                    onClick={onClose}
+                    style={{
+                        position: 'absolute',
+                        top: '25px',
+                        right: '25px',
+                        background: 'rgba(255,255,255,0.05)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '32px',
+                        height: '32px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'rgba(255,255,255,0.7)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        zIndex: 610 // Higher than content
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                >
+                    <X size={18} />
+                </button>
 
-
-                <div style={{ marginTop: 'auto', paddingTop: '40px', fontSize: '11px', color: 'rgba(255,255,255,0.2)', textAlign: 'center' }}>
-                    NauticPlayer Build v1.0.2 &bull; Powered by mpv
-                </div>
+                {legalDoc && (
+                    <LegalModal
+                        filename={legalDoc.file}
+                        title={legalDoc.title}
+                        onClose={() => setLegalDoc(null)}
+                    />
+                )}
             </div >
-
-            <button
-                onClick={onClose}
-                style={{
-                    position: 'absolute',
-                    top: '25px',
-                    right: '25px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '32px',
-                    height: '32px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'rgba(255,255,255,0.7)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    zIndex: 610 // Higher than content
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-            >
-                <X size={18} />
-            </button>
         </div >
     )
 }
