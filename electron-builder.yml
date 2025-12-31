@@ -24,7 +24,7 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: true
-  license: resources/licenses/EULA.txt
+  license: resources/legal/EULA.txt
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: "NauticPlayer"

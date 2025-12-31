@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, BrowserView, ipcMain, dialog } from 'electro
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/NauticPlayerIcon.ico?asset'
-import { setupMpvController, quitMpv, setupIpcHandlers } from './mpvController'
+import { setupMpvController, quitMpv, setupIpcHandlers, updateYtdl } from './mpvController'
 import { setupSubtitleController } from './subtitleController'
 import { logger } from './lib/logger'
 // Disable hardware acceleration to fix black screen issues
@@ -52,7 +52,7 @@ function createWindow(): void {
     logger.log('[MAIN] Initializing Controllers...')
     setupMpvController(mainWindow, mainWindow.webContents) // (Host, Sender) - Correct
     // Check for updates on startup (Silent in Prod, Verbose in Dev)
-    import('./mpvController').then(mod => mod.updateYtdl(mainWindow!.webContents, !is.dev))
+    updateYtdl(mainWindow.webContents, !is.dev)
     setupSubtitleController(mainWindow)
     setupIpcHandlers(mainWindow.webContents, mainWindow) // (Sender, Host) - Corrected Order
 

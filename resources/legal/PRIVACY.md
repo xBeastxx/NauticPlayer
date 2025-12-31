@@ -15,5 +15,4 @@ The application interacts with specific third-party APIs only when requested by 
 No tracking cookies or analytics software are embedded in this application.
 
 ## 5. Contact
-## 5. Contact
 For privacy concerns or inquiries, please contact us at: **nauticgamesstudios@gmail.com**

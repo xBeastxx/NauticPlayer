@@ -3,16 +3,16 @@
 **Last Updated:** December 2025
 
 ## 1. Introduction
-Welcome to NauticPlayer, a premium media player software developed by Manuel Perez Rodriguez (NauticGames). By purchasing, downloading, or using this software, you agree to these Terms and Conditions.
+Welcome to NauticPlayer, a free media player software developed by Manuel Perez Rodriguez (NauticGames). By downloading or using this software, you agree to these Terms and Conditions.
 
-## 2. Commercial License
-NauticPlayer is a paid, proprietary software product. You are granted a non-exclusive, non-transferable license to use this software. You may not redistribute, resell, or crack the software. Doing so acts as a violation of these terms and may result in license termination.
+## 2. Free Use License
+NauticPlayer is a free software product provided to the community. You are granted a non-exclusive license to use this software for any personal or commercial purpose free of charge. You may share the installer with others, provided you do not charge for it.
 
-## 3. Refunds and Purchases
-All sales are final unless otherwise stated by the platform from which you purchased the software. Please refer to the specific refund policy of the point of sale.
+## 3. No Warranty
+This software is provided as a free tool for the community. It comes with absolutely no warranty. The developers are not responsible for any issues that may arise from its use.
 
-## 4. Updates and Support
-We may provide updates to add features or fix bugs. These terms apply to all updates. Premium support is provided to valid license holders.
+## 4. Updates
+We may provide updates to add features or fix bugs. These terms apply to all updates.
 
 ## 5. Third-Party Rights
 This software integrates widely utilized open-source components for media processing. These components remain the property of their respective authors and are subject to their own open-source licenses. NauticPlayer claims no ownership over these specific engines.
@@ -21,4 +21,4 @@ This software integrates widely utilized open-source components for media proces
 The software is provided "as is". The developers are not liable for any damages arising from the use of this software.
 
 ## 7. Contact Information
-For support or legal inquiries regarding these terms, please contact: **nauticgamesstudios@gmail.com**
+For support or inquiries, please contact: **nauticgamesstudios@gmail.com**
