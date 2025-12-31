@@ -226,11 +226,19 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
 
             // Close settings if clicking outside
             if (showSettings) {
+                // Handle text nodes (e.g. clicking text inside a button)
+                let target = e.target as Node
+                if (target.nodeType === 3 && target.parentNode) { // Node.TEXT_NODE
+                    target = target.parentNode
+                }
+
+                const targetEl = target as Element
+
                 // Use ref for menu, fallback to data attribute for button if ref not attached
-                const isClickInsideMenu = settingsMenuRef.current?.contains(e.target as Node)
-                const isClickOnButton = settingsButtonRef.current?.contains(e.target as Node) ||
-                    (document.querySelector('[data-settings-button]')?.contains(e.target as Node))
-                const isClickInPortal = (e.target as Element).closest('[data-dropdown-portal]')
+                const isClickInsideMenu = settingsMenuRef.current?.contains(target)
+                const isClickOnButton = settingsButtonRef.current?.contains(target) ||
+                    (document.querySelector('[data-settings-button]')?.contains(target))
+                const isClickInPortal = targetEl.closest && targetEl.closest('[data-dropdown-portal]')
 
                 if (!isClickInsideMenu && !isClickOnButton && !isClickInPortal) {
                     setShowSettings(false)
@@ -238,8 +246,8 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
             }
         }
 
-        document.addEventListener('mousedown', handleClickOutside)
-        return () => document.removeEventListener('mousedown', handleClickOutside)
+        document.addEventListener('click', handleClickOutside)
+        return () => document.removeEventListener('click', handleClickOutside)
     }, [showUrlInput, showSettings])
 
     useEffect(() => {
@@ -473,7 +481,7 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
                         <FolderOpen size={18} color="rgba(255,255,255,0.7)" />
                     </FloatingButton>
 
-                    <FloatingButton onClick={() => setShowUrlInput(!showUrlInput)} data-globe-button="true">
+                    <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowUrlInput(!showUrlInput) }} data-globe-button="true">
                         <Globe size={18} color={showUrlInput ? "#fff" : "rgba(255,255,255,0.7)"} />
                     </FloatingButton>
                 </div>
@@ -497,7 +505,7 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
                 {/* Right Tools - Cleaner, just Settings + Fullscreen */}
                 <div style={{ display: 'flex', gap: '15px' }}>
 
-                    <FloatingButton onClick={() => setShowSettings(!showSettings)} data-settings-button="true">
+                    <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowSettings(!showSettings) }} data-settings-button="true">
                         <Settings size={20} color={showSettings ? "#fff" : "rgba(255,255,255,0.7)"} />
                     </FloatingButton>
 

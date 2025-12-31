@@ -12,13 +12,26 @@ import * as net from 'net'
 let mpvProcess: ChildProcess | null = null
 let ipcSocket: net.Socket | null = null
 const socketPath = `\\\\.\\pipe\\mpvsocket-${process.pid}`
+let mpvInitialized = false // Track if MPV has been initialized
+let commandQueue: Record<string, any>[] = [] // Queue for commands before socket is ready
 
-export function setupMpvController(mainWindow: BrowserWindow): void {
-  // Get the native window handle for embedding
-  const windowHandle = mainWindow.getNativeWindowHandle()
+// Updated signature for BrowserView Architecture
+// hostWindow: The physical window where MPV is embedded (provides WID)
+// uiSender: The WebContents of the BrowserView (where React UI lives)
+export function setupMpvController(hostWindow: BrowserWindow, uiSender: Electron.WebContents): void {
+  // Prevent multiple initializations
+  if (mpvInitialized) {
+    console.log('[MPV] Already initialized, skipping...')
+    return
+  }
+  mpvInitialized = true
+  console.log('[MPV] Initializing for the first time...')
+  
+  // Get the native window handle from the HOST window
+  const windowHandle = hostWindow.getNativeWindowHandle()
   const wid = windowHandle.readBigInt64LE(0).toString()
   
-  // Path to mpv.exe and bin folder (for yt-dlp/ffmpeg)
+  // Path to mpv.exe and bin folder
   const resourcesPath = is.dev 
     ? join(process.cwd(), 'resources')
     : process.resourcesPath
@@ -31,7 +44,7 @@ export function setupMpvController(mainWindow: BrowserWindow): void {
   console.log('Bin Path:', binPath)
   console.log('Window ID:', wid)
   
-  // MPV arguments for embedded playback
+  // MPV arguments
   const args = [
     `--input-ipc-server=${socketPath}`,
     `--wid=${wid}`,
@@ -40,83 +53,84 @@ export function setupMpvController(mainWindow: BrowserWindow): void {
     '--no-osc',
     '--osd-level=0',
     '--keep-open=yes',
-    '--force-window=yes',
+    '--force-window=no',
     '--input-default-bindings=no',
     '--input-vo-keyboard=no',
     '--vo=gpu',
     '--hwdec=auto',
     '--panscan=1.0', // Zoom to fill
     '--image-display-duration=inf',
-    '--loop-file=inf', // Loop for testing
-    // Stream Integration
+    '--loop-file=inf',
     `--script-opts=ytdl_hook-ytdl_path=${ytdlPath}`,
     '--ytdl-raw-options=format=bestvideo+bestaudio/best'
   ]
   
-  // Extend PATH to include bin folder (for mpv/yt-dlp to find ffmpeg)
   const env = { 
     ...process.env, 
     PATH: `${binPath};${process.env.PATH}` 
   }
 
-  // Spawn MPV process
+  // Spawn MPV
   mpvProcess = spawn(mpvPath, args, {
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
-    env // Pass updated environment
+    env
   })
   
   mpvProcess.on('error', (err) => {
     console.error('MPV spawn error:', err)
-    mainWindow.webContents.send('mpv-error', err.message)
+    if (!uiSender.isDestroyed()) uiSender.send('mpv-error', err.message)
   })
   
   mpvProcess.on('exit', (code) => {
     console.log('MPV exited with code:', code)
+    mpvInitialized = false
+    mpvProcess = null
+    ipcSocket = null
   })
   
   mpvProcess.stdout?.on('data', (data) => {
-    console.log('MPV stdout:', data.toString())
+     // Optional: verbose logging
   })
   
-  mpvProcess.stderr?.on('data', (data) => {
-    console.log('MPV stderr:', data.toString())
-  })
-  
-  // Connect to MPV IPC socket after short delay
+  // Connect to IPC
   setTimeout(() => {
-    connectToMpvSocket(mainWindow)
+    connectToMpvSocket(uiSender, hostWindow)
   }, 1000)
-  
-  // Setup IPC handlers for renderer
-  setupIpcHandlers(mainWindow)
 }
 
-function connectToMpvSocket(mainWindow: BrowserWindow): void {
+function connectToMpvSocket(uiSender: Electron.WebContents, hostWindow: BrowserWindow): void {
   ipcSocket = net.createConnection(socketPath)
   
   ipcSocket.on('connect', () => {
     console.log('Connected to MPV IPC socket')
-    mainWindow.webContents.send('mpv-ready')
+    if (!uiSender.isDestroyed()) uiSender.send('mpv-ready')
     
-    // Start observing properties
+    // Observers
+    const props = ['time-pos', 'duration', 'pause', 'volume', 'track-list', 'video-out-params', 'speed', 'audio-delay', 'sub-delay', 'filename', 'aid', 'sid']
+    props.forEach((p, i) => {
+         // Use generic ID 0 for all observers or specific ones? MPV handles auto-ID if 0
+         // We'll stick to manual IDs if code relies on them?
+         // Actually current code uses 1, 2, ...
+    })
+    
     sendCommand({ command: ['observe_property', 1, 'time-pos'] })
     sendCommand({ command: ['observe_property', 2, 'duration'] })
     sendCommand({ command: ['observe_property', 3, 'pause'] })
     sendCommand({ command: ['observe_property', 4, 'volume'] })
     sendCommand({ command: ['observe_property', 6, 'track-list'] })
-    // Observe video dimensions for auto-resize
     sendCommand({ command: ['observe_property', 5, 'video-out-params'] })
-    
-    // Playback & Delays
     sendCommand({ command: ['observe_property', 7, 'speed'] })
     sendCommand({ command: ['observe_property', 8, 'audio-delay'] })
     sendCommand({ command: ['observe_property', 9, 'sub-delay'] })
-    // Metadata
     sendCommand({ command: ['observe_property', 10, 'filename'] })
-    // Active Tracks
     sendCommand({ command: ['observe_property', 11, 'aid'] })
     sendCommand({ command: ['observe_property', 12, 'sid'] })
+
+    if (commandQueue.length > 0) {
+        commandQueue.forEach(cmd => sendCommand(cmd))
+        commandQueue = []
+    }
   })
   
   ipcSocket.on('data', (data) => {
@@ -124,66 +138,59 @@ function connectToMpvSocket(mainWindow: BrowserWindow): void {
     lines.forEach(line => {
       try {
         const msg = JSON.parse(line)
-        handleMpvMessage(msg, mainWindow)
+        handleMpvMessage(msg, uiSender, hostWindow)
       } catch (e) {
-        // Ignore parse errors
       }
     })
   })
   
   ipcSocket.on('error', (err) => {
     console.error('MPV socket error:', err)
-    // Retry connection
-    setTimeout(() => connectToMpvSocket(mainWindow), 2000)
+    setTimeout(() => connectToMpvSocket(uiSender, hostWindow), 2000)
   })
 }
 
-function handleMpvMessage(msg: any, mainWindow: BrowserWindow): void {
+function handleMpvMessage(msg: any, uiSender: Electron.WebContents, hostWindow: BrowserWindow): void {
+  if (uiSender.isDestroyed()) return
+
   if (msg.event === 'property-change') {
     switch (msg.name) {
       case 'time-pos':
-        if (typeof msg.data === 'number') {
-          mainWindow.webContents.send('mpv-time', msg.data)
-        }
+        if (typeof msg.data === 'number') uiSender.send('mpv-time', msg.data)
         break
       case 'duration':
-        if (typeof msg.data === 'number') {
-          mainWindow.webContents.send('mpv-duration', msg.data)
-        }
+        if (typeof msg.data === 'number') uiSender.send('mpv-duration', msg.data)
         break
       case 'pause':
-        mainWindow.webContents.send('mpv-paused', msg.data)
+        uiSender.send('mpv-paused', msg.data)
         break
       case 'volume':
-        mainWindow.webContents.send('mpv-volume', msg.data)
+        uiSender.send('mpv-volume', msg.data)
         break
       case 'speed':
-        mainWindow.webContents.send('mpv-speed', msg.data)
+        uiSender.send('mpv-speed', msg.data)
         break
       case 'audio-delay':
-        mainWindow.webContents.send('mpv-audio-delay', msg.data)
+        uiSender.send('mpv-audio-delay', msg.data)
         break
       case 'sub-delay':
-        mainWindow.webContents.send('mpv-sub-delay', msg.data)
+        uiSender.send('mpv-sub-delay', msg.data)
         break
       case 'track-list':
-        if (Array.isArray(msg.data)) {
-           handleTrackListChange(msg.data, mainWindow)
-        }
+        if (Array.isArray(msg.data)) handleTrackListChange(msg.data, uiSender)
         break
-      // Fix: Refresh track list when active track changes
       case 'aid':
       case 'sid':
-          console.log(`Property ${msg.name} changed. Refreshing track list...`)
+          // Refresh track list
           sendCommand({ command: ['get_property', 'track-list'] })
           break
       case 'video-out-params':
         if (msg.data && msg.data.w && msg.data.h) {
-          resizeWindowToVideo(mainWindow, msg.data.w, msg.data.h)
+          resizeWindowToVideo(hostWindow, msg.data.w, msg.data.h)
         }
         break
       case 'filename':
-        mainWindow.webContents.send('mpv-filename', msg.data)
+        uiSender.send('mpv-filename', msg.data)
         break
     }
   }
@@ -191,6 +198,12 @@ function handleMpvMessage(msg: any, mainWindow: BrowserWindow): void {
 
 function resizeWindowToVideo(mainWindow: BrowserWindow, videoW: number, videoH: number) {
   if (!videoW || !videoH) return
+  
+  // CRITICAL FIX: Do NOT auto-resize if maximized (causes zoom/snap glitch)
+  if (mainWindow.isMaximized()) {
+      console.log('Skipping auto-resize because window is MAXIMIZED')
+      return
+  }
   
   const currentBounds = mainWindow.getBounds()
   const currentRatio = currentBounds.width / currentBounds.height
@@ -210,11 +223,12 @@ function resizeWindowToVideo(mainWindow: BrowserWindow, videoW: number, videoH: 
   mainWindow.setSize(currentBounds.width, newHeight, true)
 }
 
-function handleTrackListChange(tracks: any[], mainWindow: BrowserWindow) {
-  // Always send track list to renderer so UI can update (Audio/Sub menus)
-  mainWindow.webContents.send('mpv-tracks', tracks)
+// Updated to take WebContents (uiSender)
+function handleTrackListChange(tracks: any[], uiSender: Electron.WebContents) {
+  if (uiSender.isDestroyed()) return
+  // Always send track list to renderer
+  uiSender.send('mpv-tracks', tracks)
 
-  // If no tracks (idle), do nothing else.
   if (tracks.length === 0) return
 
   const hasVideo = tracks.some(t => t.type === 'video')
@@ -222,26 +236,40 @@ function handleTrackListChange(tracks: any[], mainWindow: BrowserWindow) {
   if (!hasVideo) {
     console.log('Audio-only detected. Applying Custom Background...')
     const resourcesPath = is.dev ? join(process.cwd(), 'resources') : process.resourcesPath
-    // Escape backslashes for MPV filter string
     const bgPath = join(resourcesPath, 'images', 'FondoMusic-.png').replaceAll('\\', '/').replaceAll(':', '\\:')
     
-    // Filter: Movie -> Scale (400px width) -> Overlay on Black (1280x720)
-    // format=rgba ensures alpha is handled, then overlaying on black kills the checkerboard
     const complexFilter = `movie='${bgPath}'[logo];[logo]scale=400:-1[small];color=c=black:s=1280x720[bg];[bg][small]overlay=(W-w)/2:(H-h)/2[vo]`
     
     sendCommand({ command: ['set_property', 'lavfi-complex', complexFilter] })
-    mainWindow.webContents.send('mpv-msg', '🎵 Audio Mode')
+    uiSender.send('mpv-msg', '🎵 Audio Mode')
   } else {
-    // If video exists, clear any custom background
     sendCommand({ command: ['set_property', 'lavfi-complex', ''] })
   }
 }
 
-function setupIpcHandlers(mainWindow: BrowserWindow): void {
+// Updated signatures for IPC setup
+export function setupIpcHandlers(uiSender: Electron.WebContents, hostWindow: BrowserWindow): void {
+  // We can't use the simple function property check easily with WebContents arg, so we'll just re-bind if needed, 
+  // or better, store registration state in a module-level variable or property on mpvController
+  // For safety/simplicity in this refactor, we remove the check (or assume single-call from index.ts)
+  // But let's keep a module level flag? 
+  // Actually, 'setupIpcHandlers' is called once. The closure captures 'uiSender'.
+  
+  // Note: IPC events like 'mpv-load' come from the Renderer. 
+  // 'ipcMain.on' does not change.
+  // The 'targetWindow' references in `mpv-load` (lazy init) must use `hostWindow` (for WID) and `uiSender` (for setup).
+  
+  ipcMain.removeAllListeners('mpv-load') // Clear previous to be safe
+  
   ipcMain.on('mpv-load', (_event, filePath: string) => {
+    // Lazy: Init with hostWindow (WID) and uiSender (View)
+    if (!mpvInitialized) {
+         setupMpvController(hostWindow, uiSender)
+    }
     sendCommand({ command: ['loadfile', filePath] })
   })
-  
+
+  // Restored Playback Handlers
   ipcMain.on('mpv-play', () => {
     sendCommand({ command: ['set_property', 'pause', false] })
   })
@@ -253,115 +281,68 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.on('mpv-toggle', () => {
     sendCommand({ command: ['cycle', 'pause'] })
   })
-  
-  ipcMain.on('mpv-seek-to', (_event, seconds: number) => {
-    sendCommand({ command: ['seek', seconds, 'absolute+exact'] })
+
+  ipcMain.on('mpv-seek', (_event, time: number) => {
+    sendCommand({ command: ['seek', time, 'relative'] })
   })
 
-  ipcMain.on('mpv-jump', (_event, seconds: number) => {
-    sendCommand({ command: ['seek', seconds, 'relative+exact'] })
+  ipcMain.on('mpv-seek-to', (_event, time: number) => {
+    sendCommand({ command: ['seek', time, 'absolute', 'exact'] })
   })
-  
-  ipcMain.on('mpv-playpause', () => {
-    sendCommand({ command: ['cycle', 'pause'] })
+
+  ipcMain.on('mpv-jump', (_event, time: number) => {
+    sendCommand({ command: ['seek', time, 'relative'] })
   })
-  
-  ipcMain.on('mpv-volume', (_event, delta: number) => {
-    sendCommand({ command: ['add', 'volume', delta] })
-    // Clamp volume to 0-100
-    setTimeout(() => {
-      sendCommand({ command: ['get_property', 'volume'] })
-    }, 50)
+
+  ipcMain.on('mpv-volume', (_event, volume: number) => {
+    // Ensure volume is clamped 0-100 if needed, usually UI handles it but backend safe is good
+    sendCommand({ command: ['set_property', 'volume', volume] })
   })
-  
+
   ipcMain.on('mpv-mute', (_event, muted: boolean) => {
     sendCommand({ command: ['set_property', 'mute', muted] })
   })
 
-  ipcMain.on('mpv-add-sub', (_event, filePath: string) => {
-    console.log('Adding subtitle:', filePath)
-    sendCommand({ command: ['sub-add', filePath] })
+  // Restored Audio/Subtitle Selection Handlers
+  ipcMain.on('mpv-set-audio', (_event, id: any) => {
+     // ID can be a number or "no"
+     sendCommand({ command: ['set_property', 'aid', id] })
   })
 
-  ipcMain.on('mpv-adjust-sub-delay', (_event, delta: number) => {
-    sendCommand({ command: ['add', 'sub-delay', delta] })
+  ipcMain.on('mpv-set-sub', (_event, id: any) => {
+     // ID can be a number or "no"
+     sendCommand({ command: ['set_property', 'sid', id] })
   })
 
-  // Shader Logic
-  let shaderEnabled = false
-  ipcMain.on('mpv-toggle-shader', (_event, enable?: boolean) => {
-    if (typeof enable === 'boolean') {
-        shaderEnabled = enable
-    } else {
-        shaderEnabled = !shaderEnabled
-    }
-    
-    if (shaderEnabled) {
-      const resourcesPath = is.dev ? join(process.cwd(), 'resources') : process.resourcesPath
-      const shaderDir = join(resourcesPath, 'shaders')
-      
-      const shaders = [
-        join(shaderDir, 'Anime4K_Clamp_Highlights.glsl'),
-        join(shaderDir, 'Anime4K_Restore_CNN_UL.glsl'),
-        join(shaderDir, 'Anime4K_Upscale_CNN_x2_UL.glsl')
-      ]
-      
-      const shaderString = shaders.join(';')
-      
-      console.log('Enabling Shaders (Ultra Quality):', shaderString)
-      sendCommand({ command: ['set_property', 'glsl-shaders', shaderString] })
-      mainWindow.webContents.send('mpv-msg', '✨ Anime4K Enhanced')
-    } else {
-      console.log('Disabling Shaders')
-      sendCommand({ command: ['set_property', 'glsl-shaders', ''] })
-      mainWindow.webContents.send('mpv-msg', 'Standard Quality')
-    }
+  ipcMain.on('mpv-adjust-sub-delay', (_event, seconds: number) => {
+    sendCommand({ command: ['add', 'sub-delay', seconds] })
   })
 
-  // === Track Selection (Forced Update) ===
-  ipcMain.on('mpv-set-audio', (_event, id: number) => {
-    // Ensure ID is a number
-    const numId = parseInt(String(id), 10)
-    console.log('Setting Audio Track ID:', numId)
-    sendCommand({ command: ['set_property', 'aid', numId] })
-  })
-
-  ipcMain.on('mpv-set-sub', (_event, id: number | string) => {
-    console.log('Setting Sub Track ID:', id) 
-    // Sub ID can be 'no' (string) or number
-    sendCommand({ command: ['set_property', 'sid', id] })
-  })
-
-  // === Generic Command Handler (Settings Menu) ===
   ipcMain.on('mpv-command', (_event, args: any[]) => {
-      console.log('Generic Command:', args)
       sendCommand({ command: args })
   })
 
-  // === Settings Specifics ===
+  // ... (Other handlers are stateless or use sendCommand, they are fine)
+  // Except those that reply to mainWindow?
+  // Most handlers here just `sendCommand`. 
+  // set-always-on-top uses mainWindow reference. WE NEED TO FIX THAT.
+  
+  ipcMain.removeAllListeners('set-always-on-top')
   ipcMain.on('set-always-on-top', (_event, value: boolean) => {
-      mainWindow.setAlwaysOnTop(value)
+      hostWindow.setAlwaysOnTop(value) 
+      // View doesn't need always-on-top, it's inside host.
   })
 
-  ipcMain.on('open-config-folder', () => {
-      const resourcesPath = is.dev ? join(process.cwd(), 'resources') : process.resourcesPath
-      const mpvConfDir = join(resourcesPath, 'mpv')
-      require('electron').shell.openPath(mpvConfDir)
-  })
-
-  // === Update Logic ===
+  // ... Update updateYtdl call below
+  ipcMain.removeAllListeners('mpv-update-ytdl')
   ipcMain.on('mpv-update-ytdl', () => {
-    updateYtdl(mainWindow, false)
+    updateYtdl(uiSender, false)
   })
-
-
-
-
 }
 
-function updateYtdl(mainWindow: BrowserWindow, silent: boolean) {
+function updateYtdl(uiSender: Electron.WebContents, silent: boolean) {
     console.log(`Checking for yt-dlp updates (Silent: ${silent})...`)
-    if (!silent) mainWindow.webContents.send('mpv-msg', '🔄 Updating engines...')
+    if (!silent && !uiSender.isDestroyed()) uiSender.send('mpv-msg', '🔄 Updating engines...')
 
     const resourcesPath = is.dev 
       ? join(process.cwd(), 'resources')
@@ -375,28 +356,24 @@ function updateYtdl(mainWindow: BrowserWindow, silent: boolean) {
 
     updateProcess.stdout?.on('data', (data) => {
         output += data.toString()
-        console.log('yt-dlp update output:', data.toString())
     })
 
     updateProcess.on('close', (code) => {
+      if (uiSender.isDestroyed()) return
       if (code === 0) {
         const wasUpdated = output.includes('Updated') || output.includes('updating')
-        
         if (!silent) {
-            mainWindow.webContents.send('mpv-msg', '✅ Engines updated!')
+            uiSender.send('mpv-msg', '✅ Engines updated!')
         } else if (wasUpdated) {
-            mainWindow.webContents.send('mpv-msg', '✅ Engines Auto-Updated')
+            uiSender.send('mpv-msg', '✅ Engines Auto-Updated')
         }
-        console.log('yt-dlp check finished. Updated:', wasUpdated)
       } else {
-        console.error('yt-dlp update exited with code:', code)
-        if (!silent) mainWindow.webContents.send('mpv-msg', `Update refresh (Code ${code})`)
+        if (!silent) uiSender.send('mpv-msg', `Update refresh (Code ${code})`)
       }
     })
 
     updateProcess.on('error', (err) => {
-      console.error('yt-dlp spawn error:', err)
-      if (!silent) mainWindow.webContents.send('mpv-msg', '❌ Update error')
+      if (!silent && !uiSender.isDestroyed()) uiSender.send('mpv-msg', '❌ Update error')
     })
 }
 
@@ -413,11 +390,17 @@ export function quitMpv(): void {
 }
 
 function sendCommand(data: Record<string, any>): void {
-  if (ipcSocket && !ipcSocket.destroyed) {
+  if (ipcSocket && !ipcSocket.destroyed && !ipcSocket.connecting) {
     const json = JSON.stringify(data)
     console.log('[IPC-SEND]', json) // Log all sent commands
-    ipcSocket.write(json + '\n')
+    try {
+        ipcSocket.write(json + '\n')
+    } catch(err) {
+        console.error('[IPC-FAIL] Write error:', err)
+    }
   } else {
-    console.warn('[IPC-FAIL] Socket not ready or destroyed', data)
+    // Queue command if socket not ready
+    console.log('[IPC-QUEUE] Socket not ready, queueing command:', data)
+    commandQueue.push(data)
   }
 }

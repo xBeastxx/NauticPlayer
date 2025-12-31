@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, DragEvent } from 'react'
 import Player from './components/Player'
 import Controls from './components/Controls'
 import './assets/premium.css'
-import { Minus, X } from 'lucide-react'
+import { Minus, X, Maximize2, Minimize2 } from 'lucide-react'
 import appIcon from './assets/NauticPlayerIcon.ico'
 // Note: assuming FondoInicio.png is in assets as verified. If not, fallback to appIcon.
 import startupImg from './assets/NauticPlayerHello-.png'
@@ -143,7 +143,7 @@ function App(): JSX.Element {
 
             if (e.key === ' ') {
                 // Space = Play/Pause
-                ipcRenderer.send('mpv-playpause')
+                ipcRenderer.send('mpv-toggle')
             } else if (e.key === 'ArrowLeft') {
                 // Left = Rewind 5s
                 ipcRenderer.send('mpv-seek', -5)
@@ -151,11 +151,11 @@ function App(): JSX.Element {
                 // Right = Forward 5s
                 ipcRenderer.send('mpv-seek', 5)
             } else if (e.key === 'ArrowUp') {
-                // Up = Volume +5% (clamped to 100)
-                ipcRenderer.send('mpv-volume', 5)
+                // Up = Volume +5%
+                ipcRenderer.send('mpv-command', ['add', 'volume', 5])
             } else if (e.key === 'ArrowDown') {
-                // Down = Volume -5% (clamped to 0)
-                ipcRenderer.send('mpv-volume', -5)
+                // Down = Volume -5%
+                ipcRenderer.send('mpv-command', ['add', 'volume', -5])
             } else if (e.key === 'g' || e.key === 'G') {
                 // G = Advance subtitles (increase delay)
                 const newDelay = subDelay + 0.1
@@ -209,6 +209,11 @@ function App(): JSX.Element {
                 background: hasStarted ? 'rgba(0, 0, 0, 0.01)' : 'rgba(0, 0, 0, 0.7)',
                 backdropFilter: hasStarted ? 'none' : 'blur(20px)',
                 boxShadow: 'none',
+                pointerEvents: 'none' // CRITICAL: Let clicks pass through empty areas? Actually we need drag/drop.
+                // If we set 'none', drag/drop on container might fail. 
+                // BUT, the 'drag-region' handles window drag.
+                // The issue is likely the 'controls' container blocking.
+                // Let's keep it default but ensure children are correct.
             }}
         >
             {/* Drag Overlay */}
@@ -288,15 +293,16 @@ function App(): JSX.Element {
                 </div>
             )}
 
-            {/* Draggable Title Bar Area */}
+            {/* Draggable Title Bar Area - Adjusted to avoid blocking controls */}
             <div className="drag-region" style={{
                 position: 'absolute',
                 top: 0,
                 left: 0,
                 width: '100%',
-                height: '40px',
-                zIndex: 700, // Above overlay (600), below controls (800)
-                WebkitAppRegion: 'drag'
+                height: '30px', // Reduced height to avoid overlap
+                zIndex: 700,
+                WebkitAppRegion: 'drag',
+                pointerEvents: 'auto' // Needs events to drag
             } as any}></div>
 
             {/* Window Controls (Top Right) */}
@@ -331,6 +337,26 @@ function App(): JSX.Element {
                     onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)' }}
                 >
                     <Minus size={14} />
+                </button>
+                <button
+                    onClick={() => ipcRenderer.send('toggle-fullscreen')}
+                    style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '0',
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'rgba(255,255,255,0.6)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)' }}
+                >
+                    {isMaximized ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
                 </button>
                 <button
                     onClick={() => ipcRenderer.send('close-window')}

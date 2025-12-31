@@ -721,7 +721,8 @@ const CustomSelect = ({ options, value, onChange, placeholder }: any) => {
                 options.map((opt: any) => (
                     <div
                         key={opt.value}
-                        onClick={() => {
+                        onClick={(e) => {
+                            e.stopPropagation() // Prevent closing parent menus or triggering outside clicks
                             onChange(opt.value)
                             setIsOpen(false)
                         }}

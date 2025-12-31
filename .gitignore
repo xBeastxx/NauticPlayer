@@ -8,3 +8,6 @@ dist/
 resources/mpv/
 *.exe
 *.dll
+
+# Logs
+logs/*.json
