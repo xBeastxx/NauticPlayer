@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
     Settings, X, Monitor, Volume2, Subtitles, PlayCircle,
-    Zap, Camera, Layers, FileVideo, ChevronDown, Check, RefreshCw
+    Zap, Camera, Layers, FileVideo, ChevronDown, Check, RefreshCw,
+    Search, Download, Globe, Link
 } from 'lucide-react'
 
 const { ipcRenderer } = (window as any).require('electron')
@@ -19,13 +20,17 @@ interface SettingsMenuProps {
     setAnime4K: (val: boolean) => void;
     loopState: 'none' | 'inf' | 'one';
     setLoopState: (val: 'none' | 'inf' | 'one') => void;
+    alwaysOnTop: boolean;
+    setAlwaysOnTop: (val: boolean) => void;
+    filename?: string;
 }
 
 export default function SettingsMenu({
     onClose, currentTracks, showStats, toggleStats,
-    hwDec, setHwDec, anime4K, setAnime4K, loopState, setLoopState
+    hwDec, setHwDec, anime4K, setAnime4K, loopState, setLoopState,
+    alwaysOnTop, setAlwaysOnTop, filename
 }: SettingsMenuProps): JSX.Element {
-    const [activeTab, setActiveTab] = useState<'video' | 'audio' | 'subs' | 'playback' | 'general'>('video')
+    const [activeTab, setActiveTab] = useState<'video' | 'audio' | 'subs' | 'playback' | 'general' | 'online'>('video')
 
     // Video States (Lifted)
     // Audio States
@@ -37,6 +42,13 @@ export default function SettingsMenu({
     // Playback States
     const [speed, setSpeed] = useState(1.0)
     // Loop State (Lifted)
+
+    // Subtitle Search State
+    const [searchQuery, setSearchQuery] = useState(filename || '')
+    const [subCheck, setSubCheck] = useState(false)
+    const [searchResults, setSearchResults] = useState<any[]>([])
+    const [isSearching, setIsSearching] = useState(false)
+    const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
     // Derived Track Lists
     const audioTracks = currentTracks.filter(t => t.type === 'audio')
@@ -58,6 +70,41 @@ export default function SettingsMenu({
             ipcRenderer.removeAllListeners('mpv-sub-delay')
         }
     }, [])
+
+    // Auto-fill filename when it changes
+    useEffect(() => {
+        if (filename && !subCheck) {
+            setSearchQuery(filename.replace(/\.(mp4|mkv|avi|mov)$/i, ''))
+            setSubCheck(true)
+        }
+    }, [filename, subCheck])
+
+    const handleSearchSubs = async () => {
+        if (!searchQuery.trim()) return
+        setIsSearching(true)
+        setSearchResults([])
+        try {
+            const results = await ipcRenderer.invoke('search-subs', { query: searchQuery, lang: 'all' })
+            setSearchResults(results)
+        } catch (e) {
+            console.error(e)
+        } finally {
+            setIsSearching(false)
+        }
+    }
+
+    const handleDownloadSub = async (sub: any) => {
+        setDownloadingId(sub.id) // unique id from OS or just use url
+        try {
+            const path = await ipcRenderer.invoke('download-sub', { url: sub.url, name: sub.filename })
+            ipcRenderer.send('mpv-add-sub', path)
+            ipcRenderer.send('mpv-msg', 'Subtitle Loaded!')
+        } catch (e) {
+            ipcRenderer.send('mpv-msg', 'Download Failed')
+        } finally {
+            setDownloadingId(null)
+        }
+    }
 
     const handleTabClick = (tab: any) => setActiveTab(tab)
 
@@ -108,7 +155,9 @@ export default function SettingsMenu({
     }
 
     const toggleAlwaysOnTop = () => {
-        ipcRenderer.send('toggle-always-on-top')
+        const newValue = !alwaysOnTop
+        setAlwaysOnTop(newValue)
+        ipcRenderer.send('set-always-on-top', newValue)
     }
 
     const openConfig = () => {
@@ -167,25 +216,28 @@ export default function SettingsMenu({
     const currentSub = subOptions.find(o => o.selected)
 
     return (
-        <div style={{
-            position: 'fixed', // Fixed to viewport
-            bottom: '15px', // Lowered further
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '700px', // Wider
-            height: '420px', // Height
-            maxHeight: '80vh',
-            background: 'rgba(0, 0, 0, 0.9)', // Pure black
-            backdropFilter: 'blur(30px)',
-            borderRadius: '24px',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 40px 80px rgba(0, 0, 0, 0.6)',
-            zIndex: 600,
-            display: 'flex',
-            overflow: 'hidden',
-            fontFamily: "'Outfit', 'Inter', sans-serif", // Nicer font preference
-            pointerEvents: 'auto'
-        }}>
+        <div
+            data-settings-menu="true"
+            style={{
+                position: 'fixed', // Fixed to viewport
+                bottom: '15px', // Lowered further
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '700px', // Wider
+                height: '420px', // Height
+                maxHeight: '80vh',
+                background: 'rgba(0, 0, 0, 0.9)', // Pure black
+                backdropFilter: 'blur(30px)',
+                borderRadius: '24px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                boxShadow: '0 40px 80px rgba(0, 0, 0, 0.6)',
+                zIndex: 600,
+                display: 'flex',
+                overflow: 'hidden',
+                fontFamily: "'Outfit', 'Inter', sans-serif", // Nicer font preference
+                pointerEvents: 'auto'
+            }}
+        >
             {/* Sidebar */}
             <div style={{
                 width: '200px',
@@ -307,6 +359,137 @@ export default function SettingsMenu({
                                         onChange={(e) => adjustSubDelay(Number(e.target.value))}
                                         style={rangeStyle}
                                     />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '5px' }}>
+                                        <span>Earlier (-2s)</span>
+                                        <span>Default</span>
+                                        <span>Later (+2s)</span>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', flex: 1 }}></div>
+                                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>SEARCH ONLINE</span>
+                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', flex: 1 }}></div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder="Movie/Series Name..."
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && searchQuery.trim()) {
+                                                ipcRenderer.invoke('open-opensubtitles', searchQuery)
+                                            }
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            background: 'rgba(255,255,255,0.05)',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            borderRadius: '8px',
+                                            padding: '10px 15px',
+                                            color: '#fff',
+                                            outline: 'none',
+                                            fontSize: '13px'
+                                        }}
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            if (searchQuery.trim()) {
+                                                navigator.clipboard.writeText(searchQuery.trim())
+                                                ipcRenderer.send('mpv-msg', 'Copied to clipboard!')
+                                            }
+                                        }}
+                                        disabled={!searchQuery.trim()}
+                                        style={{
+                                            background: searchQuery.trim() ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                                            color: searchQuery.trim() ? '#fff' : 'rgba(255,255,255,0.3)',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            borderRadius: '8px',
+                                            padding: '10px 15px',
+                                            cursor: searchQuery.trim() ? 'pointer' : 'not-allowed',
+                                            fontSize: '13px',
+                                            fontWeight: 600,
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        📋
+                                    </button>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                    <button
+                                        onClick={() => ipcRenderer.invoke('open-opensubtitles')}
+                                        style={{
+                                            flex: 1,
+                                            background: 'rgba(255,255,255,0.08)',
+                                            color: '#fff',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                            borderRadius: '8px',
+                                            padding: '12px',
+                                            cursor: 'pointer',
+                                            fontSize: '13px',
+                                            fontWeight: 600,
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        Get in OpenSubtitles
+                                    </button>
+                                    <button
+                                        onClick={() => ipcRenderer.invoke('open-subdivx')}
+                                        style={{
+                                            flex: 1,
+                                            background: 'rgba(255,255,255,0.08)',
+                                            color: '#fff',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                            borderRadius: '8px',
+                                            padding: '12px',
+                                            cursor: 'pointer',
+                                            fontSize: '13px',
+                                            fontWeight: 600,
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        Get in Subdivx
+                                    </button>
+                                </div>
+
+                                <div
+                                    style={{
+                                        fontSize: '11px',
+                                        color: 'rgba(255,255,255,0.4)',
+                                        marginTop: '10px',
+                                        padding: '10px',
+                                        background: 'rgba(255,255,255,0.03)',
+                                        borderRadius: '6px',
+                                        lineHeight: '1.5',
+                                        transition: 'all 0.3s ease',
+                                        cursor: 'help'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'scale(1.05)'
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                                        e.currentTarget.style.fontSize = '12px'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'scale(1)'
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                                        e.currentTarget.style.fontSize = '11px'
+                                    }}
+                                >
+                                    <div style={{ marginBottom: '5px', color: 'rgba(255,255,255,0.5)' }}>
+                                        💡 <strong>Tip:</strong> Clean the title for better search results
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>
+                                        Instead of: <span style={{ color: 'rgba(255,100,100,0.6)' }}>Get.Smart.2008(@Intermedia™)</span>
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>
+                                        <strong style={{ color: 'rgba(100,255,100,0.8)' }}>Use instead:</strong> <strong>Get Smart 2008</strong>
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                        Download the .srt file, then drag and drop it onto the player
+                                    </div>
                                 </div>
                             </div>
                         </>
@@ -370,9 +553,7 @@ export default function SettingsMenu({
                             </div>
                             <div style={{ flex: 1, overflowY: 'auto', padding: '0 40px 30px' }} className="custom-scroll">
                                 <SettingItem label="Always on Top" description="Keep the player window floating above other apps.">
-                                    <button onClick={toggleAlwaysOnTop} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)' }}>
-                                        <Layers size={20} />
-                                    </button>
+                                    <Toggle checked={alwaysOnTop} onChange={toggleAlwaysOnTop} />
                                 </SettingItem>
 
                                 <div style={{ marginTop: '25px', display: 'flex', gap: '10px' }}>
@@ -383,15 +564,17 @@ export default function SettingsMenu({
                                         <RefreshCw size={16} /> Update Engines
                                     </button>
                                 </div>
-
-                                <div style={{ marginTop: 'auto', paddingTop: '40px', fontSize: '11px', color: 'rgba(255,255,255,0.2)', textAlign: 'center' }}>
-                                    NauticPlayer Build v1.0.2 &bull; Powered by mpv
-                                </div>
                             </div>
                         </>
                     )
                 }
-            </div >
+
+
+
+                <div style={{ marginTop: 'auto', paddingTop: '40px', fontSize: '11px', color: 'rgba(255,255,255,0.2)', textAlign: 'center' }}>
+                    NauticPlayer Build v1.0.2 &bull; Powered by mpv
+                </div>
+            </div>
 
             <button
                 onClick={onClose}

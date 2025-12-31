@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/NauticPlayerIcon.ico?asset'
 import { setupMpvController, quitMpv } from './mpvController'
+import { setupSubtitleController } from './subtitleController'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -33,6 +34,7 @@ function createWindow(): void {
     // Initialize MPV after window is shown
     if (mainWindow) {
       setupMpvController(mainWindow)
+      setupSubtitleController(mainWindow)
     }
   })
 

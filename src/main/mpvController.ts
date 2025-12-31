@@ -112,6 +112,8 @@ function connectToMpvSocket(mainWindow: BrowserWindow): void {
     sendCommand({ command: ['observe_property', 7, 'speed'] })
     sendCommand({ command: ['observe_property', 8, 'audio-delay'] })
     sendCommand({ command: ['observe_property', 9, 'sub-delay'] })
+    // Metadata
+    sendCommand({ command: ['observe_property', 10, 'filename'] })
   })
   
   ipcSocket.on('data', (data) => {
@@ -170,6 +172,9 @@ function handleMpvMessage(msg: any, mainWindow: BrowserWindow): void {
         if (msg.data && msg.data.w && msg.data.h) {
           resizeWindowToVideo(mainWindow, msg.data.w, msg.data.h)
         }
+        break
+      case 'filename':
+        mainWindow.webContents.send('mpv-filename', msg.data)
         break
     }
   }
@@ -247,15 +252,32 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
   })
   
   ipcMain.on('mpv-seek', (_event, seconds: number) => {
-    sendCommand({ command: ['seek', seconds, 'absolute'] })
+    sendCommand({ command: ['seek', seconds, 'relative'] })
   })
   
-  ipcMain.on('mpv-volume', (_event, volume: number) => {
-    sendCommand({ command: ['set_property', 'volume', volume] })
+  ipcMain.on('mpv-playpause', () => {
+    sendCommand({ command: ['cycle', 'pause'] })
+  })
+  
+  ipcMain.on('mpv-volume', (_event, delta: number) => {
+    sendCommand({ command: ['add', 'volume', delta] })
+    // Clamp volume to 0-100
+    setTimeout(() => {
+      sendCommand({ command: ['get_property', 'volume'] })
+    }, 50)
   })
   
   ipcMain.on('mpv-mute', (_event, muted: boolean) => {
     sendCommand({ command: ['set_property', 'mute', muted] })
+  })
+
+  ipcMain.on('mpv-add-sub', (_event, filePath: string) => {
+    console.log('Adding subtitle:', filePath)
+    sendCommand({ command: ['sub-add', filePath] })
+  })
+
+  ipcMain.on('mpv-adjust-sub-delay', (_event, delta: number) => {
+    sendCommand({ command: ['add', 'sub-delay', delta] })
   })
 
   // Shader Logic
@@ -296,9 +318,8 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
   })
 
   // === Settings Specifics ===
-  ipcMain.on('toggle-always-on-top', () => {
-      const isTop = mainWindow.isAlwaysOnTop()
-      mainWindow.setAlwaysOnTop(!isTop)
+  ipcMain.on('set-always-on-top', (_event, value: boolean) => {
+      mainWindow.setAlwaysOnTop(value)
   })
 
   ipcMain.on('open-config-folder', () => {

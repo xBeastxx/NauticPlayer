@@ -14,6 +14,7 @@ function App(): JSX.Element {
     const [isDragOver, setIsDragOver] = useState(false)
     const [hasStarted, setHasLoadedFile] = useState(false)
     const [toastMsg, setToastMsg] = useState('')
+    const [filename, setFilename] = useState('')
 
     // Listen for maximize state changes
     useEffect(() => {
@@ -41,7 +42,16 @@ function App(): JSX.Element {
             setTimeout(() => setToastMsg(''), 5000) // 5 seconds
         }
         ipcRenderer.on('mpv-msg', onMpvMsg)
-        return () => { ipcRenderer.removeListener('mpv-msg', onMpvMsg) }
+
+        ipcRenderer.on('mpv-filename', (_: any, name: string) => {
+            console.log('Filename update:', name)
+            setFilename(name)
+        })
+
+        return () => {
+            ipcRenderer.removeListener('mpv-msg', onMpvMsg)
+            ipcRenderer.removeAllListeners('mpv-filename')
+        }
     }, [])
 
     // Drag and Drop handlers
@@ -79,6 +89,8 @@ function App(): JSX.Element {
     const [showControls, setShowControls] = useState(true)
     const [showSettings, setShowSettings] = useState(false) // Lifted state
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const [subDelay, setSubDelay] = useState(0) // Track subtitle delay
 
     const handleMouseMove = () => {
         setShowControls(true)
@@ -94,6 +106,17 @@ function App(): JSX.Element {
         }, 1500)
     }
 
+    // Listen for sub-delay changes from MPV
+    useEffect(() => {
+        const handleSubDelay = (_: any, delay: number) => {
+            setSubDelay(delay)
+        }
+        ipcRenderer.on('mpv-sub-delay', handleSubDelay)
+        return () => {
+            ipcRenderer.removeListener('mpv-sub-delay', handleSubDelay)
+        }
+    }, [])
+
     // Force controls visible if settings are open
     useEffect(() => {
         if (showSettings) {
@@ -105,11 +128,61 @@ function App(): JSX.Element {
 
     useEffect(() => {
         window.addEventListener('mousemove', handleMouseMove)
+
+        // Keyboard shortcuts
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore if typing in an input
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return
+            }
+
+            // Prevent default for media keys to avoid conflicts
+            if ([' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+                e.preventDefault()
+            }
+
+            if (e.key === ' ') {
+                // Space = Play/Pause
+                ipcRenderer.send('mpv-playpause')
+            } else if (e.key === 'ArrowLeft') {
+                // Left = Rewind 5s
+                ipcRenderer.send('mpv-seek', -5)
+            } else if (e.key === 'ArrowRight') {
+                // Right = Forward 5s
+                ipcRenderer.send('mpv-seek', 5)
+            } else if (e.key === 'ArrowUp') {
+                // Up = Volume +5% (clamped to 100)
+                ipcRenderer.send('mpv-volume', 5)
+            } else if (e.key === 'ArrowDown') {
+                // Down = Volume -5% (clamped to 0)
+                ipcRenderer.send('mpv-volume', -5)
+            } else if (e.key === 'g' || e.key === 'G') {
+                // G = Advance subtitles (increase delay)
+                const newDelay = subDelay + 0.1
+                setSubDelay(newDelay)
+                ipcRenderer.send('mpv-adjust-sub-delay', 0.1)
+                setToastMsg(`Subtitles ${newDelay >= 0 ? '+' : ''}${newDelay.toFixed(1)}s`)
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 3500)
+            } else if (e.key === 'h' || e.key === 'H') {
+                // H = Delay subtitles (decrease delay)
+                const newDelay = subDelay - 0.1
+                setSubDelay(newDelay)
+                ipcRenderer.send('mpv-adjust-sub-delay', -0.1)
+                setToastMsg(`Subtitles ${newDelay >= 0 ? '+' : ''}${newDelay.toFixed(1)}s`)
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 3500)
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+
         return () => {
             window.removeEventListener('mousemove', handleMouseMove)
+            window.removeEventListener('keydown', handleKeyDown)
             if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
         }
-    }, [showSettings]) // Re-bind capability if needed, or better yet, use ref for showSettings or just rely on state closure if we used a ref. 
+    }, [showSettings, subDelay]) // Re-bind capability if needed, or better yet, use ref for showSettings or just rely on state closure if we used a ref. 
     // actually handleMouseMove captures the scope variable. 'showSettings' will be stale in the timeout if we don't be careful.
     // Better to use a ref for showSettings or recreate the handler.
     // Simplest is to add showSettings to dependency array.
@@ -287,30 +360,25 @@ function App(): JSX.Element {
                 transition: 'opacity 0.5s ease',
                 pointerEvents: showControls ? 'auto' : 'none'
             }}>
-                <Controls showSettings={showSettings} setShowSettings={setShowSettings} />
+                <Controls showSettings={showSettings} setShowSettings={setShowSettings} filename={filename} />
             </div>
 
             {/* Toast Notification */}
             {toastMsg && (
                 <div style={{
-                    position: 'absolute',
-                    top: '80px', // Below title bar
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    background: 'rgba(37, 99, 235, 0.9)', // Blue-600
+                    position: 'fixed',
+                    bottom: '110px',
+                    left: '20px',
+                    background: 'transparent',
                     color: '#fff',
-                    padding: '8px 20px',
-                    borderRadius: '20px',
-                    fontSize: '14px',
-                    fontWeight: 600,
+                    padding: '0',
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    fontFamily: 'monospace',
                     zIndex: 9999,
-                    boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
-                    backdropFilter: 'blur(8px)',
-                    animation: 'fadeIn 0.3s ease-out',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
+                    textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+                    animation: 'fadeIn 0.2s ease-out',
+                    pointerEvents: 'none'
                 }}>
                     {toastMsg}
                 </div>

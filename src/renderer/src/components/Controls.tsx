@@ -38,7 +38,7 @@ const formatTime = (seconds: number): string => {
 
 // ... imports
 
-export default function Controls({ showSettings, setShowSettings }: any): JSX.Element {
+export default function Controls({ showSettings, setShowSettings, filename }: any): JSX.Element {
     // Playback State
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
@@ -48,8 +48,8 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
     // Volume State
     const [showVolume, setShowVolume] = useState(false)
     const [isMuted, setIsMuted] = useState(false)
-    const [volume, setVolume] = useState(100)
-    const [prevVolume, setPrevVolume] = useState(100)
+    const [volume, setVolume] = useState(60)
+    const [prevVolume, setPrevVolume] = useState(60)
     // URL Input State
     const [showUrlInput, setShowUrlInput] = useState(false)
     const [streamUrl, setStreamUrl] = useState('')
@@ -62,6 +62,7 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
     const [hwDec, setHwDec] = useState(true)
     const [anime4K, setAnime4K] = useState(false)
     const [loopState, setLoopState] = useState<'none' | 'inf' | 'one'>('none')
+    const [alwaysOnTop, setAlwaysOnTop] = useState(false)
 
     // Stats State
     const [showStats, setShowStats] = useState(false)
@@ -79,6 +80,7 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
         const onMpvReady = () => {
             console.log('MPV Ready!')
             setMpvReady(true)
+            ipcRenderer.send('mpv-command', ['set_property', 'volume', 60])
         }
 
         const onMpvTime = (_event: any, time: number) => {
@@ -170,9 +172,9 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
         if (!volumeRef.current) return
         const rect = volumeRef.current.getBoundingClientRect()
         const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-        const newVol = Math.round(percent * 100)
+        const newVol = Math.min(100, Math.round(percent * 100)) // Clamp to 100
         setVolume(newVol)
-        ipcRenderer.send('mpv-volume', newVol)
+        ipcRenderer.send('mpv-command', ['set_property', 'volume', newVol])
         if (newVol > 0) setIsMuted(false)
         if (newVol === 0) setIsMuted(true)
     }
@@ -205,6 +207,54 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
 
     const timePercent = duration > 0 ? (currentTime / duration) * 100 : 0
     const noop = () => { }
+
+    // Click outside to close URL input and Settings Menu
+    // Click outside to close URL input and Settings Menu
+    const urlInputRef = useRef<HTMLDivElement>(null)
+    const settingsMenuRef = useRef<HTMLDivElement>(null)
+    const settingsButtonRef = useRef<HTMLButtonElement>(null)
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            // Close URL input if clicking outside
+            if (showUrlInput && urlInputRef.current && !urlInputRef.current.contains(e.target as Node)) {
+                // Don't close if clicking the globe button
+                const globeButton = document.querySelector('[data-globe-button]')
+                if (globeButton && globeButton.contains(e.target as Node)) return
+                setShowUrlInput(false)
+            }
+
+            // Close settings if clicking outside
+            if (showSettings) {
+                // Use ref for menu, fallback to data attribute for button if ref not attached
+                const isClickInsideMenu = settingsMenuRef.current?.contains(e.target as Node)
+                const isClickOnButton = settingsButtonRef.current?.contains(e.target as Node) ||
+                    (document.querySelector('[data-settings-button]')?.contains(e.target as Node))
+
+                if (!isClickInsideMenu && !isClickOnButton) {
+                    setShowSettings(false)
+                }
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [showUrlInput, showSettings])
+
+    useEffect(() => {
+        const handleWheel = (e: WheelEvent) => {
+            if (e.deltaY < 0) {
+                // Scroll Up - Increase Volume
+                ipcRenderer.send('mpv-volume', 5)
+            } else {
+                // Scroll Down - Decrease Volume
+                ipcRenderer.send('mpv-volume', -5)
+            }
+        }
+
+        window.addEventListener('wheel', handleWheel)
+        return () => window.removeEventListener('wheel', handleWheel)
+    }, [])
 
     const handleUrlSubmit = (e: React.FormEvent) => {
         e.preventDefault()
@@ -240,20 +290,22 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
             {/* Stream URL Input Overlay */}
             {/* Stream URL Input - Floating above timeline */}
             {showUrlInput && (
-                <div style={{
-                    position: 'absolute',
-                    bottom: '85px',
-                    background: '#121212', // Solid background (requested: "no transparente")
-                    padding: '8px 12px',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                    pointerEvents: 'auto',
-                    zIndex: 100
-                }}
+                <div
+                    ref={urlInputRef}
+                    style={{
+                        position: 'absolute',
+                        bottom: '85px',
+                        background: '#121212', // Solid background (requested: "no transparente")
+                        padding: '8px 12px',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                        pointerEvents: 'auto',
+                        zIndex: 100
+                    }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <form onSubmit={handleUrlSubmit} style={{ display: 'flex', gap: '8px', alignItems: 'center', margin: 0 }}>
@@ -379,7 +431,7 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
                                 }}
                             >
                                 <div style={{
-                                    width: `${volume}%`,
+                                    width: `${Math.min(100, volume)}%`,
                                     height: '100%',
                                     background: '#fff',
                                     borderRadius: '2px',
@@ -392,13 +444,24 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
                                     background: '#fff',
                                     borderRadius: '50%',
                                     position: 'absolute',
-                                    left: `${volume}%`,
+                                    left: `${Math.min(100, volume)}%`,
                                     top: '50%',
                                     transform: 'translate(-50%, -50%)',
                                     boxShadow: '0 0 12px #fff',
                                     cursor: 'grab'
                                 }}></div>
                             </div>
+
+                            <span style={{
+                                fontSize: '11px',
+                                fontFamily: 'Inter',
+                                opacity: 0.7,
+                                marginLeft: '8px',
+                                minWidth: '32px',
+                                textAlign: 'right'
+                            }}>
+                                {Math.round(volume)}%
+                            </span>
                         </div>
                     </div>
 
@@ -406,7 +469,7 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
                         <FolderOpen size={18} color="rgba(255,255,255,0.7)" />
                     </FloatingButton>
 
-                    <FloatingButton onClick={() => setShowUrlInput(!showUrlInput)}>
+                    <FloatingButton onClick={() => setShowUrlInput(!showUrlInput)} data-globe-button="true">
                         <Globe size={18} color={showUrlInput ? "#fff" : "rgba(255,255,255,0.7)"} />
                     </FloatingButton>
                 </div>
@@ -430,7 +493,7 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
                 {/* Right Tools - Cleaner, just Settings + Fullscreen */}
                 <div style={{ display: 'flex', gap: '15px' }}>
 
-                    <FloatingButton onClick={() => setShowSettings(!showSettings)}>
+                    <FloatingButton onClick={() => setShowSettings(!showSettings)} data-settings-button="true">
                         <Settings size={20} color={showSettings ? "#fff" : "rgba(255,255,255,0.7)"} />
                     </FloatingButton>
 
@@ -444,18 +507,23 @@ export default function Controls({ showSettings, setShowSettings }: any): JSX.El
 
             {/* Settings Menu Overlay */}
             {showSettings && (
-                <SettingsMenu
-                    onClose={() => setShowSettings(false)}
-                    currentTracks={tracks}
-                    showStats={showStats}
-                    toggleStats={toggleStats}
-                    hwDec={hwDec}
-                    setHwDec={setHwDec}
-                    anime4K={anime4K}
-                    setAnime4K={setAnime4K}
-                    loopState={loopState}
-                    setLoopState={setLoopState}
-                />
+                <div ref={settingsMenuRef} style={{ display: 'contents' }}>
+                    <SettingsMenu
+                        onClose={() => setShowSettings(false)}
+                        currentTracks={tracks}
+                        showStats={showStats}
+                        toggleStats={toggleStats}
+                        hwDec={hwDec}
+                        setHwDec={setHwDec}
+                        anime4K={anime4K}
+                        setAnime4K={setAnime4K}
+                        loopState={loopState}
+                        setLoopState={setLoopState}
+                        filename={filename}
+                        alwaysOnTop={alwaysOnTop}
+                        setAlwaysOnTop={setAlwaysOnTop}
+                    />
+                </div>
             )}
         </div>
     )

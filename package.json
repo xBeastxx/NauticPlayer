@@ -10,11 +10,17 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "fast-fuzzy": "^1.12.0",
+    "fuzzysort": "^3.1.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "mpv.js": "^0.3.0",
+    "node-html-parser": "^7.0.1",
     "node-mpv": "^1.5.0",
+    "opensubtitles-api": "^5.1.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "subdl": "^1.0.0",
     "yt-dlp-wrap": "^2.3.12"
   },
   "devDependencies": {
