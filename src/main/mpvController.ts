@@ -254,8 +254,12 @@ function setupIpcHandlers(mainWindow: BrowserWindow): void {
     sendCommand({ command: ['cycle', 'pause'] })
   })
   
-  ipcMain.on('mpv-seek', (_event, seconds: number) => {
-    sendCommand({ command: ['seek', seconds, 'absolute'] })
+  ipcMain.on('mpv-seek-to', (_event, seconds: number) => {
+    sendCommand({ command: ['seek', seconds, 'absolute+exact'] })
+  })
+
+  ipcMain.on('mpv-jump', (_event, seconds: number) => {
+    sendCommand({ command: ['seek', seconds, 'relative+exact'] })
   })
   
   ipcMain.on('mpv-playpause', () => {

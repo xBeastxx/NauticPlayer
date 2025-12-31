@@ -162,7 +162,7 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
 
     const handleTimelineMouseUp = () => {
         if (isDraggingTime) {
-            ipcRenderer.send('mpv-seek', currentTime)
+            ipcRenderer.send('mpv-seek-to', currentTime)
         }
         setIsDraggingTime(false)
     }
@@ -480,7 +480,7 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
 
                 {/* Playback Controls */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <FloatingButton onClick={() => ipcRenderer.send('mpv-seek', currentTime - 10)}><SkipBack size={24} fill="#fff" /></FloatingButton>
+                    <FloatingButton onClick={() => ipcRenderer.send('mpv-jump', -10)}><SkipBack size={24} fill="#fff" /></FloatingButton>
 
                     <FloatingButton onClick={togglePlay} hero>
                         {isPlaying ? (
@@ -490,7 +490,7 @@ export default function Controls({ showSettings, setShowSettings, filename }: an
                         )}
                     </FloatingButton>
 
-                    <FloatingButton onClick={() => ipcRenderer.send('mpv-seek', currentTime + 10)}><SkipForward size={24} fill="#fff" /></FloatingButton>
+                    <FloatingButton onClick={() => ipcRenderer.send('mpv-jump', 10)}><SkipForward size={24} fill="#fff" /></FloatingButton>
                 </div>
 
 
