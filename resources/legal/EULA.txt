@@ -1,11 +1,9 @@
 END USER LICENSE AGREEMENT (EULA)
 
-This End-User License Agreement ("EULA") is a legal agreement between you ("Licensee") and NauticPlayer ("Licensor") regarding the use of the NauticPlayer software ("Software").
+This End-User License Agreement ("EULA") is a legal agreement between you ("Licensee") and Manuel Perez Rodriguez, operating as NauticGames ("Licensor"), regarding the use of the NauticPlayer software ("Software").
 
 1. PROPRIETARY LICENSE
-NauticPlayer is a commercial, premium software product. It is licensed, not sold, to you for use only under the terms of this license.
-- Restrictions: You may NOT copy, distribute, resell, decompile, reverse engineer, or modify the proprietary components of this Software (user interface, branding, proprietary logic) without express written consent from the Licensor.
-- Commercial Use: This license grants you the right to use the software for personal or commercial purposes as permitted by your purchase agreement.
+NauticPlayer is a commercial, premium software product. It is licensed, not sold, to you for use only under the terms of this license. You may NOT copy, distribute, resell, decompile, reverse engineer, or modify the proprietary components of this Software (user interface, branding, proprietary logic) without express written consent from the Licensor. This license grants you the right to use the software for personal or commercial purposes as permitted by your purchase agreement.
 
 2. THIRD-PARTY COMPONENTS
 This Software bundles open-source components which are governed by their own licenses. The Licensor claims no proprietary rights over these specific components:

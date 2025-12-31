@@ -51,6 +51,8 @@ function createWindow(): void {
     // We use mainWindow for both the WID host and the IPC sender
     logger.log('[MAIN] Initializing Controllers...')
     setupMpvController(mainWindow, mainWindow.webContents) // (Host, Sender) - Correct
+    // Check for updates on startup (Silent in Prod, Verbose in Dev)
+    import('./mpvController').then(mod => mod.updateYtdl(mainWindow!.webContents, !is.dev))
     setupSubtitleController(mainWindow)
     setupIpcHandlers(mainWindow.webContents, mainWindow) // (Sender, Host) - Corrected Order
 

@@ -340,7 +340,7 @@ export function setupIpcHandlers(uiSender: Electron.WebContents, hostWindow: Bro
   })
 }
 
-function updateYtdl(uiSender: Electron.WebContents, silent: boolean) {
+export function updateYtdl(uiSender: Electron.WebContents, silent: boolean) {
     console.log(`Checking for yt-dlp updates (Silent: ${silent})...`)
     if (!silent && !uiSender.isDestroyed()) uiSender.send('mpv-msg', '🔄 Updating engines...')
 
