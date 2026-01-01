@@ -1,9 +1,9 @@
-import { app, shell, BrowserWindow, BrowserView, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/NauticPlayerIcon.ico?asset'
-import { setupMpvController, quitMpv, setupIpcHandlers, updateYtdl } from './mpvController'
+import { setupMpvController, setupIpcHandlers, updateYtdl } from './mpvController'
 import { setupSubtitleController } from './subtitleController'
 import { logger } from './lib/logger'
 
@@ -60,9 +60,9 @@ function createWindow(): void {
     mainWindow.on('leave-full-screen', () => {
         isInFullScreenMode = false
         if (mainWindow?.isMaximized()) {
-            mainWindow.webContents.send('window-maximized')
+            mainWindow?.webContents.send('window-maximized')
         } else {
-            mainWindow.webContents.send('window-unmaximized')
+            mainWindow?.webContents.send('window-unmaximized')
         }
     })
 
@@ -136,7 +136,7 @@ ipcMain.on('toggle-fullscreen', () => {
   if (mainWindow) {
     const isMax = mainWindow.isMaximized()
     
-    logger.log('[TOGGLE] isInFullScreenMode:', isInFullScreenMode, 'isMaximized:', isMax)
+    logger.log(`[TOGGLE] isInFullScreenMode: ${isInFullScreenMode}, isMaximized: ${isMax}`)
     
     if (isMax || isInFullScreenMode) {
         logger.log('[TOGGLE] Restoring window...')
