@@ -12,6 +12,7 @@ autoUpdater.autoDownload = true
 autoUpdater.logger = logger as any
 
 let mainWindow: BrowserWindow | null = null
+let isInFullScreenMode = false // Manual tracking for fullscreen state
 // NOTE: "View" is the UI Layer
 
 
@@ -48,7 +49,22 @@ function createWindow(): void {
     
     logger.log('[MAIN] Window ready-to-show')
     mainWindow.show()
-    mainWindow.focus() // Ensure focus
+    mainWindow.focus()
+    // Sync UI with Window State
+    mainWindow.on('maximize', () => mainWindow?.webContents.send('window-maximized'))
+    mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window-unmaximized'))
+    mainWindow.on('enter-full-screen', () => {
+        isInFullScreenMode = true
+        mainWindow?.webContents.send('window-maximized')
+    })
+    mainWindow.on('leave-full-screen', () => {
+        isInFullScreenMode = false
+        if (mainWindow?.isMaximized()) {
+            mainWindow.webContents.send('window-maximized')
+        } else {
+            mainWindow.webContents.send('window-unmaximized')
+        }
+    })
 
     // Initialize MPV on the MainWindow
     // We use mainWindow for both the WID host and the IPC sender
@@ -118,10 +134,23 @@ ipcMain.on('close-window', () => {
 
 ipcMain.on('toggle-fullscreen', () => {
   if (mainWindow) {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize()
+    const isMax = mainWindow.isMaximized()
+    
+    logger.log('[TOGGLE] isInFullScreenMode:', isInFullScreenMode, 'isMaximized:', isMax)
+    
+    if (isMax || isInFullScreenMode) {
+        logger.log('[TOGGLE] Restoring window...')
+        mainWindow.setFullScreen(false)
+        isInFullScreenMode = false
+        setTimeout(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.unmaximize()
+            }
+        }, 200)
     } else {
-      mainWindow.maximize()
+        logger.log('[TOGGLE] Expanding to fullscreen...')
+        mainWindow.setFullScreen(true)
+        isInFullScreenMode = true
     }
   }
 })
