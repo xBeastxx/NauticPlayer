@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/xBeastxx/NauticPlayer/main/resources/icon.png" alt="NauticPlayer Logo" width="120" height="120">
+  <img src="https://raw.githubusercontent.com/xBeastxx/NauticPlayer/main/resources/NauticPlayerIcon.ico" alt="NauticPlayer Logo" width="120" height="120">
 </p>
 
 <h1 align="center">� NauticPlayer</h1>
@@ -219,7 +219,7 @@ NauticPlayer/
 
 ### Proprietary License
 
-NauticPlayer is provided **free of charge** for personal and commercial use. However, the UI design, branding, and proprietary logic remain the intellectual property of **NauticGames**.
+NauticPlayer is provided **free of charge** for personal and commercial use. However, the UI design, branding, and proprietary logic remain the intellectual property of **NauticGames™**.
 
 **You may:**
 - ✅ Use the software freely
@@ -261,12 +261,12 @@ Special thanks to the incredible open-source projects that make NauticPlayer pos
 
 - **Issues & Bug Reports:** [GitHub Issues](https://github.com/xBeastxx/NauticPlayer/issues)
 - **Author:** Manuel Perez Rodriguez
-- **Organization:** NauticGames
+- **Organization:** NauticGames™
 
 ---
 
 <p align="center">
-  <strong>Made with ❤️ by NauticGames</strong>
+  <strong>Made with ❤️ by NauticGames™</strong>
 </p>
 
 <p align="center">
