@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/icon.png" alt="NauticPlayer Logo" width="120" height="120">
+  <img src="https://raw.githubusercontent.com/xBeastxx/NauticPlayer/main/resources/icon.png" alt="NauticPlayer Logo" width="120" height="120">
 </p>
 
 <h1 align="center">� NauticPlayer</h1>
