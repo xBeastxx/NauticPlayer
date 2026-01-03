@@ -31,7 +31,7 @@
 
 ---
 
-## 📖 About
+##  About
 
 **NauticPlayer** is a sleek, high-performance media player designed for Windows users who demand both aesthetics and power. Built with modern web technologies and powered by the legendary **MPV** media engine, NauticPlayer delivers a fluid, borderless viewing experience with crystal-clear video playback.
 
@@ -39,72 +39,72 @@ Whether you're watching local files or streaming content from the web, NauticPla
 
 ---
 
-## ✨ Features
+##  Features
 
-### 🎨 **Crystal Glass UI**
+###  **Crystal Glass UI**
 - Borderless, transparent window with stunning glassmorphism effects
 - Smooth animations and transitions throughout the interface
 - Minimalist design that puts your content first
 
-### � **Powerful Playback Engine**
+###  **Powerful Playback Engine**
 - Powered by **MPV** - the most versatile media player engine
 - Hardware-accelerated video decoding for smooth 4K/HDR playback
 - Support for virtually all video and audio formats (MKV, MP4, AVI, MOV, WebM, and more)
 
-### 🌐 **Stream Anything**
+###  **Stream Anything**
 - Built-in **yt-dlp** integration for streaming online content
 - Paste a URL and play - it's that simple
 - Automatic updates for yt-dlp to ensure compatibility
 
-### 📝 **Subtitle Support**
+###  **Subtitle Support**
 - Quick access to **OpenSubtitles** and **Subdivx** for subtitle downloads
 - Multiple subtitle track selection
 - Full subtitle customization options
 
-### 🎛️ **Advanced Controls**
+###  **Advanced Controls**
 - Interactive volume and timeline sliders with smooth drag support
 - Loop modes (None, File, A-B Loop)
 - Playback speed control
 - Audio and video track selection
 
-### 🎨 **Video Enhancement Shaders**
+###  **Video Enhancement Shaders**
 - Built-in collection of 39+ video enhancement shaders
 - Real-time shader toggling for improved video quality
 - Anime4K, FSRCNNX, and more upscaling options
 
-### ⚙️ **Smart Settings**
+###  **Smart Settings**
 - Customizable video, audio, and subtitle preferences
 - Screenshot capture with configurable format and template
 - Hardware acceleration options
 - Cache and performance tuning
 
-### �️ **Modern Window Management**
+###  **Modern Window Management**
 - Frameless design with custom window controls
 - True fullscreen mode with taskbar hiding
 - Remembers window size and position
 - Single-instance application with file forwarding
 
-### 🔄 **Auto Updates**
+###  **Auto Updates**
 - Automatic application updates via GitHub Releases
 - Silent background updates with user notification
 - Always stay up-to-date with the latest features
 
 ---
 
-## 📸 Screenshots
+##  Screenshots
 
 > *Coming soon - Add your screenshots here!*
 
 ---
 
-## 📥 Installation
+##  Installation
 
 ### Download Pre-built Installer
 
 1. Go to the [**Releases Page**](https://github.com/xBeastxx/NauticPlayer/releases/latest)
 2. Download the latest `NauticPlayer-Setup-x.x.x.exe`
 3. Run the installer and follow the prompts
-4. Enjoy! 🎉
+4. Enjoy! 
 
 ### Supported Platforms
 
@@ -116,7 +116,7 @@ Whether you're watching local files or streaming content from the web, NauticPla
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+##  Keyboard Shortcuts
 
 | Action | Shortcut |
 |--------|----------|
@@ -137,7 +137,7 @@ Whether you're watching local files or streaming content from the web, NauticPla
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 NauticPlayer is built with cutting-edge technologies:
 
@@ -154,7 +154,7 @@ NauticPlayer is built with cutting-edge technologies:
 
 ---
 
-## 💻 Development
+##  Development
 
 ### Prerequisites
 
@@ -215,7 +215,7 @@ NauticPlayer/
 
 ---
 
-## 📜 Legal & Licensing
+##  Legal & Licensing
 
 ### Proprietary License
 
@@ -245,7 +245,7 @@ You are free to modify or replace these components in accordance with their lice
 
 ---
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 Special thanks to the incredible open-source projects that make NauticPlayer possible:
 
@@ -257,7 +257,7 @@ Special thanks to the incredible open-source projects that make NauticPlayer pos
 
 ---
 
-## 📞 Support & Contact
+##  Support & Contact
 
 - **Issues & Bug Reports:** [GitHub Issues](https://github.com/xBeastxx/NauticPlayer/issues)
 - **Author:** Manuel Perez Rodriguez
