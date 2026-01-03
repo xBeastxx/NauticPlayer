@@ -1,0 +1,35 @@
+# Dependabot configuration for NauticPlayer
+# Automatically checks for dependency updates weekly
+
+version: 2
+updates:
+  # NPM dependencies (Node.js/Electron project)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    # Limit the number of open PRs
+    open-pull-requests-limit: 5
+    # Group minor and patch updates together
+    groups:
+      development-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+    # Commit message settings
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    # Labels for PRs
+    labels:
+      - "dependencies"
+      - "automated"
