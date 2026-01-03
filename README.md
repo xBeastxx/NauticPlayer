@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/xBeastxx/NauticPlayer/main/resources/NauticPlayerIcon.ico" alt="NauticPlayer Logo" width="120" height="120">
 </p>
 
-<h1 align="center">� NauticPlayer</h1>
+<h1 align="center">NauticPlayer</h1>
 
 <p align="center">
   <strong>A Premium, Modern Media Player for Windows</strong>
