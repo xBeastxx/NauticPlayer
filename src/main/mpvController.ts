@@ -58,7 +58,7 @@ export function setupMpvController(hostWindow: BrowserWindow, uiSender: Electron
     '--input-vo-keyboard=no',
     '--vo=gpu',
     '--hwdec=auto',
-    '--panscan=1.0', // Zoom to fill
+    '--panscan=1.0', // Zoom to fill (will be dynamically adjusted in fullscreen)
     '--image-display-duration=inf',
     '--loop-file=inf',
     `--script-opts=ytdl_hook-ytdl_path=${ytdlPath}`,
@@ -389,7 +389,7 @@ export function quitMpv(): void {
   }
 }
 
-function sendCommand(data: Record<string, any>): void {
+export function sendCommand(data: Record<string, any>): void {
   if (ipcSocket && !ipcSocket.destroyed && !ipcSocket.connecting) {
     const json = JSON.stringify(data)
     console.log('[IPC-SEND]', json) // Log all sent commands

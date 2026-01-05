@@ -3,7 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/NauticPlayerIcon.ico?asset'
-import { setupMpvController, setupIpcHandlers, updateYtdl } from './mpvController'
+import { setupMpvController, setupIpcHandlers, updateYtdl, sendCommand } from './mpvController'
 import { setupSubtitleController } from './subtitleController'
 import { logger } from './lib/logger'
 
@@ -56,9 +56,13 @@ function createWindow(): void {
     mainWindow.on('enter-full-screen', () => {
         isInFullScreenMode = true
         mainWindow?.webContents.send('window-maximized')
+        // Disable zoom in fullscreen to show full video without cropping
+        sendCommand({ command: ['set_property', 'panscan', 0] })
     })
     mainWindow.on('leave-full-screen', () => {
         isInFullScreenMode = false
+        // Re-enable zoom for windowed mode to fill the window
+        sendCommand({ command: ['set_property', 'panscan', 1.0] })
         if (mainWindow?.isMaximized()) {
             mainWindow?.webContents.send('window-maximized')
         } else {

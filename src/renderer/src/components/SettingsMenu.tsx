@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import {
     Settings, X, Monitor, Volume2, Subtitles, PlayCircle,
     Zap, Camera, Layers, FileVideo, ChevronDown, Check, RefreshCw,
-    Search, Download, Globe, Link
+    Search, Download, Globe, Link, FolderOpen
 } from 'lucide-react'
 
 import LegalModal from './LegalModal'
@@ -367,6 +367,51 @@ export default function SettingsMenu({
                                         <span>Default</span>
                                         <span>Later (+2s)</span>
                                     </div>
+                                </div>
+
+                                <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', flex: 1 }}></div>
+                                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>LOAD FROM FILE</span>
+                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', flex: 1 }}></div>
+                                </div>
+
+                                <div style={{ marginBottom: '25px' }}>
+                                    <button
+                                        onClick={async () => {
+                                            const filePath = await ipcRenderer.invoke('open-subtitle-dialog')
+                                            if (filePath) {
+                                                ipcRenderer.send('mpv-add-sub', filePath)
+                                                ipcRenderer.send('mpv-msg', '✅ Subtitle Loaded!')
+                                            }
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%)',
+                                            color: '#fff',
+                                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                                            borderRadius: '10px',
+                                            padding: '14px 20px',
+                                            cursor: 'pointer',
+                                            fontSize: '14px',
+                                            fontWeight: 600,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '10px',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0.2) 100%)'
+                                            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%)'
+                                            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)'
+                                        }}
+                                    >
+                                        <FolderOpen size={18} />
+                                        Load Subtitle from Computer
+                                    </button>
                                 </div>
 
                                 <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
