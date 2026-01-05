@@ -9,6 +9,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import * as net from 'net'
 import { getIsFullScreen } from './index'
+import { isYouTubeUrl, extractYouTubeMetadata } from './lib/historyService'
 
 let mpvProcess: ChildProcess | null = null
 let ipcSocket: net.Socket | null = null
@@ -275,11 +276,21 @@ export function setupIpcHandlers(uiSender: Electron.WebContents, hostWindow: Bro
   
   ipcMain.removeAllListeners('mpv-load') // Clear previous to be safe
   
-  ipcMain.on('mpv-load', (_event, filePath: string) => {
+  ipcMain.on('mpv-load', async (_event, filePath: string) => {
     // Lazy: Init with hostWindow (WID) and uiSender (View)
     if (!mpvInitialized) {
          setupMpvController(hostWindow, uiSender)
     }
+    
+    // Extract YouTube metadata if applicable (async, non-blocking)
+    if (isYouTubeUrl(filePath)) {
+      extractYouTubeMetadata(filePath).then(metadata => {
+        if (metadata && !uiSender.isDestroyed()) {
+          uiSender.send('youtube-metadata', metadata)
+        }
+      })
+    }
+    
     sendCommand({ command: ['loadfile', filePath] })
   })
 

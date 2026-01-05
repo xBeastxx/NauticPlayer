@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock, Loader2 } from 'lucide-react'
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock, Loader2, History } from 'lucide-react'
 import SettingsMenu from './SettingsMenu'
+import HistoryPanel from './HistoryPanel'
+import { useHistory } from '../hooks/useHistory'
 
 // Use window.require for Electron in Vite context
 const { ipcRenderer } = (window as any).require('electron')
@@ -77,6 +79,17 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
 
     const [isFullscreen, setIsFullscreen] = useState(false)
 
+    // History State
+    const [showHistory, setShowHistory] = useState(false)
+    const {
+        history,
+        searchQuery,
+        setSearchQuery,
+        addToHistory,
+        removeFromHistory,
+        clearHistory
+    } = useHistory()
+
     // Drag State
     const [isDraggingTime, setIsDraggingTime] = useState(false)
     const [isDraggingVolume, setIsDraggingVolume] = useState(false)
@@ -152,6 +165,28 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
             ipcRenderer.removeListener('mpv-error', onMpvError)
         }
     }, [isDraggingTime])
+
+    // Listen for YouTube metadata to save to history
+    useEffect(() => {
+        const onYouTubeMetadata = (_event: any, metadata: any) => {
+            if (metadata && metadata.url && metadata.title) {
+                addToHistory({
+                    id: metadata.id || crypto.randomUUID(),
+                    url: metadata.url,
+                    title: metadata.title,
+                    thumbnail: metadata.thumbnail || '',
+                    channel: metadata.channel || 'Unknown',
+                    duration: metadata.duration || 0
+                })
+            }
+        }
+
+        ipcRenderer.on('youtube-metadata', onYouTubeMetadata)
+
+        return () => {
+            ipcRenderer.removeListener('youtube-metadata', onYouTubeMetadata)
+        }
+    }, [addToHistory])
 
     // === Control Handlers ===
     const togglePlay = () => {
@@ -561,6 +596,10 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                     {/* Right Tools - Cleaner, just Settings + Fullscreen */}
                     <div style={{ display: 'flex', gap: '15px' }}>
 
+                        <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowHistory(!showHistory) }} data-history-button="true">
+                            <History size={20} color={showHistory ? "#fff" : "rgba(255,255,255,0.7)"} />
+                        </FloatingButton>
+
                         <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowSettings(!showSettings) }} data-settings-button="true">
                             <Settings size={20} color={showSettings ? "#fff" : "rgba(255,255,255,0.7)"} />
                         </FloatingButton>
@@ -595,6 +634,22 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                     />
                 </div>
             )}
+
+            {/* History Panel */}
+            <HistoryPanel
+                isOpen={showHistory}
+                onClose={() => setShowHistory(false)}
+                history={history}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                onPlayItem={(url) => {
+                    setIsLoadingUrl(true)
+                    ipcRenderer.send('mpv-load', url)
+                    setShowHistory(false)
+                }}
+                onRemoveItem={removeFromHistory}
+                onClearAll={clearHistory}
+            />
         </div>
     )
 }
