@@ -13,6 +13,11 @@ autoUpdater.logger = logger as any
 
 let mainWindow: BrowserWindow | null = null
 let isInFullScreenMode = false // Manual tracking for fullscreen state
+
+// Export getter for fullscreen state (used by mpvController)
+export function getIsFullScreen(): boolean {
+    return isInFullScreenMode
+}
 // NOTE: "View" is the UI Layer
 
 

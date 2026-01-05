@@ -41,6 +41,16 @@ export default function SettingsMenu({
 
     // Subtitle States
     const [subDelay, setSubDelay] = useState(0)
+    const [subScale, setSubScale] = useState(() => {
+        const saved = localStorage.getItem('nautic-sub-scale')
+        return saved ? parseFloat(saved) : 1.0
+    })
+
+    // Video States
+    const [aspectRatio, setAspectRatio] = useState(() => {
+        const saved = localStorage.getItem('nautic-aspect-ratio')
+        return saved || 'default'
+    })
 
     // Playback States
     const [speed, setSpeed] = useState(1.0)
@@ -66,6 +76,20 @@ export default function SettingsMenu({
         ipcRenderer.on('mpv-speed', onSpeed)
         ipcRenderer.on('mpv-audio-delay', onAudioDelay)
         ipcRenderer.on('mpv-sub-delay', onSubDelay)
+
+        // Apply saved subtitle scale on mount
+        const savedSubScale = localStorage.getItem('nautic-sub-scale')
+        if (savedSubScale) {
+            const scale = parseFloat(savedSubScale)
+            ipcRenderer.send('mpv-command', ['set_property', 'sub-scale', scale])
+        }
+
+        // Apply saved aspect ratio on mount
+        const savedAspect = localStorage.getItem('nautic-aspect-ratio')
+        if (savedAspect && savedAspect !== 'default') {
+            ipcRenderer.send('mpv-command', ['set_property', 'panscan', 0])
+            ipcRenderer.send('mpv-command', ['set_property', 'video-aspect-override', savedAspect])
+        }
 
         return () => {
             ipcRenderer.removeAllListeners('mpv-speed')
@@ -140,6 +164,26 @@ export default function SettingsMenu({
     const adjustSubDelay = (val: number) => {
         setSubDelay(val)
         ipcRenderer.send('mpv-command', ['set_property', 'sub-delay', val])
+    }
+
+    const changeSubScale = (val: number) => {
+        setSubScale(val)
+        localStorage.setItem('nautic-sub-scale', val.toString())
+        ipcRenderer.send('mpv-command', ['set_property', 'sub-scale', val])
+    }
+
+    const changeAspectRatio = (val: string) => {
+        setAspectRatio(val)
+        localStorage.setItem('nautic-aspect-ratio', val)
+        if (val === 'default') {
+            // Reset to original aspect ratio and restore panscan
+            ipcRenderer.send('mpv-command', ['set_property', 'video-aspect-override', '-1'])
+            ipcRenderer.send('mpv-command', ['set_property', 'panscan', 1.0])
+        } else {
+            // Disable panscan when forcing aspect ratio to avoid conflicts
+            ipcRenderer.send('mpv-command', ['set_property', 'panscan', 0])
+            ipcRenderer.send('mpv-command', ['set_property', 'video-aspect-override', val])
+        }
     }
 
     const changeSpeed = (val: number) => {
@@ -222,44 +266,50 @@ export default function SettingsMenu({
         <div
             data-settings-menu="true"
             style={{
-                position: 'fixed', // Fixed to viewport
-                bottom: '15px', // Lowered further
+                position: 'fixed',
+                bottom: 'clamp(8px, 2vh, 15px)',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                width: 'min(700px, 90vw)',
-                height: 'min(500px, 85vh)',
+                width: 'clamp(320px, 92vw, 700px)',
+                height: 'clamp(280px, 80vh, 500px)',
                 maxHeight: '85vh',
-                backgroundColor: '#0a0a0a', // Near black to avoid Windows transparency key bug
+                backgroundColor: '#0a0a0a',
                 backdropFilter: 'none',
-                borderRadius: '24px',
+                borderRadius: 'clamp(12px, 3vw, 24px)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
                 boxShadow: '0 40px 80px rgba(0, 0, 0, 0.6)',
                 zIndex: 600,
                 display: 'flex',
                 overflow: 'hidden',
-                fontFamily: "'Outfit', 'Inter', sans-serif", // Nicer font preference
-                pointerEvents: 'auto'
+                fontFamily: "'Outfit', 'Inter', sans-serif",
+                pointerEvents: 'auto',
+                fontSize: 'clamp(11px, 1.4vw, 14px)'
             }}
         >
-            {/* Sidebar */}
+            {/* Sidebar - Compact on small screens */}
             <div style={{
-                width: '200px',
+                width: 'clamp(50px, 20vw, 200px)',
+                minWidth: '50px',
                 background: 'rgba(255, 255, 255, 0.02)',
                 borderRight: '1px solid rgba(255, 255, 255, 0.05)',
-                padding: '30px 15px',
+                padding: 'clamp(12px, 3vh, 30px) clamp(6px, 1.5vw, 15px)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '8px'
+                gap: 'clamp(4px, 1vh, 8px)',
+                overflow: 'hidden'
             }}>
                 <div style={{
-                    padding: '0 15px 20px',
-                    fontSize: '11px',
+                    padding: '0 clamp(4px, 1vw, 15px) clamp(8px, 2vh, 20px)',
+                    fontSize: 'clamp(8px, 1.2vw, 11px)',
                     fontWeight: 700,
                     color: 'rgba(255,255,255,0.3)',
                     textTransform: 'uppercase',
-                    letterSpacing: '2px'
+                    letterSpacing: 'clamp(0.5px, 0.2vw, 2px)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
                 }}>
-                    Device Settings
+                    Settings
                 </div>
 
                 <TabButton active={activeTab === 'video'} onClick={() => handleTabClick('video')} icon={Monitor} label="Video" />
@@ -274,11 +324,10 @@ export default function SettingsMenu({
                 {
                     activeTab === 'video' && (
                         <>
-                            <div style={{ padding: '30px 40px 10px', flexShrink: 0 }}>
-                                <h2 style={headerStyle}>Video Configuration</h2>
-                                <div style={sectionSpacer}></div>
+                            <div style={{ padding: 'clamp(12px, 2.5vh, 24px) clamp(16px, 3vw, 32px) clamp(6px, 1vh, 12px)', flexShrink: 0 }}>
+                                <h2 style={headerStyle}>Display</h2>
                             </div>
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '0 40px 30px' }} className="custom-scroll">
+                            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 clamp(16px, 3vw, 32px) clamp(12px, 2vh, 24px)' }} className="custom-scroll">
                                 <SettingItem label="Hardware Acceleration" description="Use GPU for smoother 4K/HDR playback.">
                                     <Toggle checked={hwDec} onChange={toggleHwDec} />
                                 </SettingItem>
@@ -286,6 +335,37 @@ export default function SettingsMenu({
                                 <SettingItem label="Anime4K Upscaling" description="Real-time anime upscaling algorithm (High GPU usage).">
                                     <Toggle checked={anime4K} onChange={toggleAnime4K} />
                                 </SettingItem>
+
+                                <div style={{ marginTop: '8px' }}>
+                                    <label style={labelStyle}>Aspect Ratio</label>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                        {[
+                                            { value: 'default', label: 'Auto' },
+                                            { value: '16:9', label: '16:9' },
+                                            { value: '4:3', label: '4:3' },
+                                            { value: '21:9', label: '21:9' },
+                                            { value: '1:1', label: '1:1' }
+                                        ].map(opt => (
+                                            <button
+                                                key={opt.value}
+                                                onClick={() => changeAspectRatio(opt.value)}
+                                                style={{
+                                                    padding: 'clamp(6px, 1vh, 8px) clamp(10px, 2vw, 14px)',
+                                                    background: aspectRatio === opt.value ? '#3b82f6' : 'rgba(255,255,255,0.05)',
+                                                    color: aspectRatio === opt.value ? '#fff' : 'rgba(255,255,255,0.7)',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    cursor: 'pointer',
+                                                    fontSize: 'clamp(10px, 1.2vw, 12px)',
+                                                    fontWeight: aspectRatio === opt.value ? 600 : 400,
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </>
                     )
@@ -294,13 +374,12 @@ export default function SettingsMenu({
                 {
                     activeTab === 'audio' && (
                         <>
-                            <div style={{ padding: '30px 40px 10px', flexShrink: 0 }}>
-                                <h2 style={headerStyle}>Audio Configuration</h2>
-                                <div style={sectionSpacer}></div>
+                            <div style={{ padding: 'clamp(12px, 2.5vh, 24px) clamp(16px, 3vw, 32px) clamp(6px, 1vh, 12px)', flexShrink: 0 }}>
+                                <h2 style={headerStyle}>Sound</h2>
                             </div>
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '0 40px 30px' }} className="custom-scroll">
-                                <div style={{ marginBottom: '30px' }}>
-                                    <label style={labelStyle}>Active Audio Track</label>
+                            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 clamp(16px, 3vw, 32px) clamp(12px, 2vh, 24px)' }} className="custom-scroll">
+                                <div style={{ marginBottom: '16px' }}>
+                                    <label style={labelStyle}>Audio Track</label>
                                     <CustomSelect
                                         options={audioOptions}
                                         value={currentAudio}
@@ -309,10 +388,10 @@ export default function SettingsMenu({
                                     />
                                 </div>
 
-                                <div style={{ marginBottom: '20px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                                        <label style={labelStyle}>Audio Sync Adjustment</label>
-                                        <span style={{ color: '#3b82f6', fontSize: '13px', fontWeight: 600 }}>{audioDelay > 0 ? '+' : ''}{audioDelay}s</span>
+                                <div style={{ marginBottom: '8px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                        <label style={{ ...labelStyle, marginBottom: 0 }}>Sync Adjustment</label>
+                                        <span style={{ color: '#3b82f6', fontSize: '12px', fontWeight: 600 }}>{audioDelay > 0 ? '+' : ''}{audioDelay}s</span>
                                     </div>
                                     <input
                                         type="range"
@@ -335,13 +414,12 @@ export default function SettingsMenu({
                 {
                     activeTab === 'subs' && (
                         <>
-                            <div style={{ padding: '30px 40px 10px', flexShrink: 0 }}>
-                                <h2 style={headerStyle}>Subtitle Configuration</h2>
-                                <div style={sectionSpacer}></div>
+                            <div style={{ padding: 'clamp(12px, 2.5vh, 24px) clamp(16px, 3vw, 32px) clamp(6px, 1vh, 12px)', flexShrink: 0 }}>
+                                <h2 style={headerStyle}>Subtitles</h2>
                             </div>
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '0 40px 30px' }} className="custom-scroll">
-                                <div style={{ marginBottom: '30px' }}>
-                                    <label style={labelStyle}>Active Subtitle Track</label>
+                            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 clamp(16px, 3vw, 32px) clamp(12px, 2vh, 24px)' }} className="custom-scroll">
+                                <div style={{ marginBottom: '16px' }}>
+                                    <label style={labelStyle}>Subtitle Track</label>
                                     <CustomSelect
                                         options={subOptions}
                                         value={currentSub}
@@ -369,13 +447,27 @@ export default function SettingsMenu({
                                     </div>
                                 </div>
 
-                                <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', flex: 1 }}></div>
-                                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>LOAD FROM FILE</span>
-                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', flex: 1 }}></div>
+                                <div style={{ marginBottom: '16px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                        <label style={{ ...labelStyle, marginBottom: 0 }}>Subtitle Size</label>
+                                        <span style={{ color: '#3b82f6', fontSize: '12px', fontWeight: 600 }}>{subScale.toFixed(1)}x</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0.5" max="2" step="0.1"
+                                        value={subScale}
+                                        onChange={(e) => changeSubScale(Number(e.target.value))}
+                                        style={rangeStyle}
+                                    />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '5px' }}>
+                                        <span>Small (0.5x)</span>
+                                        <span>Default</span>
+                                        <span>Large (2x)</span>
+                                    </div>
                                 </div>
 
-                                <div style={{ marginBottom: '25px' }}>
+                                {/* Load Local Subtitle */}
+                                <div style={{ marginTop: '8px' }}>
                                     <button
                                         onClick={async () => {
                                             const filePath = await ipcRenderer.invoke('open-subtitle-dialog')
@@ -386,157 +478,69 @@ export default function SettingsMenu({
                                         }}
                                         style={{
                                             width: '100%',
-                                            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%)',
+                                            background: 'rgba(255,255,255,0.05)',
                                             color: '#fff',
-                                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                                            border: '1px solid rgba(255,255,255,0.08)',
                                             borderRadius: '10px',
-                                            padding: '14px 20px',
+                                            padding: '12px 16px',
                                             cursor: 'pointer',
-                                            fontSize: '14px',
-                                            fontWeight: 600,
+                                            fontSize: '13px',
+                                            fontWeight: 500,
                                             display: 'flex',
                                             alignItems: 'center',
-                                            justifyContent: 'center',
                                             gap: '10px',
                                             transition: 'all 0.2s'
                                         }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0.2) 100%)'
-                                            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%)'
-                                            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)'
-                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                                     >
-                                        <FolderOpen size={18} />
-                                        Load Subtitle from Computer
+                                        <FolderOpen size={16} />
+                                        Load from file...
                                     </button>
                                 </div>
 
-                                <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', flex: 1 }}></div>
-                                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>SEARCH ONLINE</span>
-                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', flex: 1 }}></div>
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Movie/Series Name..."
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && searchQuery.trim()) {
-                                                ipcRenderer.invoke('open-opensubtitles', searchQuery)
-                                            }
-                                        }}
-                                        style={{
-                                            flex: 1,
-                                            background: 'rgba(255,255,255,0.05)',
-                                            border: '1px solid rgba(255,255,255,0.1)',
-                                            borderRadius: '8px',
-                                            padding: '10px 15px',
-                                            color: '#fff',
-                                            outline: 'none',
-                                            fontSize: '13px'
-                                        }}
-                                    />
-                                    <button
-                                        onClick={() => {
-                                            if (searchQuery.trim()) {
-                                                navigator.clipboard.writeText(searchQuery.trim())
-                                                ipcRenderer.send('mpv-msg', 'Copied to clipboard!')
-                                            }
-                                        }}
-                                        disabled={!searchQuery.trim()}
-                                        style={{
-                                            background: searchQuery.trim() ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
-                                            color: searchQuery.trim() ? '#fff' : 'rgba(255,255,255,0.3)',
-                                            border: '1px solid rgba(255,255,255,0.1)',
-                                            borderRadius: '8px',
-                                            padding: '10px 15px',
-                                            cursor: searchQuery.trim() ? 'pointer' : 'not-allowed',
-                                            fontSize: '13px',
-                                            fontWeight: 600,
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        📋
-                                    </button>
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                                    <button
-                                        onClick={() => ipcRenderer.invoke('open-opensubtitles')}
-                                        style={{
-                                            flex: 1,
-                                            background: 'rgba(255,255,255,0.08)',
-                                            color: '#fff',
-                                            border: '1px solid rgba(255,255,255,0.15)',
-                                            borderRadius: '8px',
-                                            padding: '12px',
-                                            cursor: 'pointer',
-                                            fontSize: '13px',
-                                            fontWeight: 600,
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        Get in OpenSubtitles
-                                    </button>
-                                    <button
-                                        onClick={() => ipcRenderer.invoke('open-subdivx')}
-                                        style={{
-                                            flex: 1,
-                                            background: 'rgba(255,255,255,0.08)',
-                                            color: '#fff',
-                                            border: '1px solid rgba(255,255,255,0.15)',
-                                            borderRadius: '8px',
-                                            padding: '12px',
-                                            cursor: 'pointer',
-                                            fontSize: '13px',
-                                            fontWeight: 600,
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        Get in Subdivx
-                                    </button>
-                                </div>
-
-                                <div
-                                    style={{
-                                        fontSize: '11px',
-                                        color: 'rgba(255,255,255,0.4)',
-                                        marginTop: '10px',
-                                        padding: '10px',
-                                        background: 'rgba(255,255,255,0.03)',
-                                        borderRadius: '6px',
-                                        lineHeight: '1.5',
-                                        transition: 'all 0.3s ease',
-                                        cursor: 'help'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.transform = 'scale(1.05)'
-                                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                                        e.currentTarget.style.fontSize = '12px'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.transform = 'scale(1)'
-                                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                                        e.currentTarget.style.fontSize = '11px'
-                                    }}
-                                >
-                                    <div style={{ marginBottom: '5px', color: 'rgba(255,255,255,0.5)' }}>
-                                        💡 <strong>Tip:</strong> Clean the title for better search results
-                                    </div>
-                                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)' }}>
-                                        Instead of: <span style={{ color: 'rgba(255,100,100,0.6)' }}>Get.Smart.2008(@Intermedia™)</span>
-                                    </div>
-                                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>
-                                        <strong style={{ color: 'rgba(100,255,100,0.8)' }}>Use instead:</strong> <strong>Get Smart 2008</strong>
-                                    </div>
-                                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                        Download the .srt file, then drag and drop it onto the player
+                                {/* Online Sources */}
+                                <div style={{ marginTop: '16px' }}>
+                                    <label style={labelStyle}>Find Online</label>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={() => ipcRenderer.invoke('open-opensubtitles')}
+                                            style={{
+                                                flex: 1,
+                                                background: 'rgba(255,255,255,0.05)',
+                                                color: 'rgba(255,255,255,0.8)',
+                                                border: '1px solid rgba(255,255,255,0.08)',
+                                                borderRadius: '8px',
+                                                padding: '10px',
+                                                cursor: 'pointer',
+                                                fontSize: '12px',
+                                                fontWeight: 500,
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                        >
+                                            OpenSubtitles
+                                        </button>
+                                        <button
+                                            onClick={() => ipcRenderer.invoke('open-subdivx')}
+                                            style={{
+                                                flex: 1,
+                                                background: 'rgba(255,255,255,0.05)',
+                                                color: 'rgba(255,255,255,0.8)',
+                                                border: '1px solid rgba(255,255,255,0.08)',
+                                                borderRadius: '8px',
+                                                padding: '10px',
+                                                cursor: 'pointer',
+                                                fontSize: '12px',
+                                                fontWeight: 500,
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                        >
+                                            Subdivx
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -547,25 +551,28 @@ export default function SettingsMenu({
                 {
                     activeTab === 'playback' && (
                         <>
-                            <div style={{ padding: '30px 40px 10px', flexShrink: 0 }}>
-                                <h2 style={headerStyle}>Playback Controls</h2>
-                                <div style={sectionSpacer}></div>
+                            <div style={{ padding: 'clamp(12px, 2.5vh, 24px) clamp(16px, 3vw, 32px) clamp(6px, 1vh, 12px)', flexShrink: 0 }}>
+                                <h2 style={headerStyle}>Playback</h2>
                             </div>
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '0 40px 30px' }} className="custom-scroll">
-                                <div style={{ marginBottom: '30px' }}>
-                                    <label style={labelStyle}>Playback Speed ({speed}x)</label>
-                                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 clamp(16px, 3vw, 32px) clamp(12px, 2vh, 24px)' }} className="custom-scroll">
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={labelStyle}>Speed</label>
+                                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
                                         {[0.5, 1.0, 1.25, 1.5, 2.0].map(s => (
                                             <button
                                                 key={s}
                                                 onClick={() => changeSpeed(s)}
                                                 style={{
-                                                    ...buttonStyle,
                                                     flex: 1,
+                                                    padding: '8px 12px',
+                                                    borderRadius: '8px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '12px',
                                                     background: speed === s ? '#3b82f6' : 'rgba(255, 255, 255, 0.05)',
                                                     color: speed === s ? '#fff' : 'rgba(255,255,255,0.7)',
                                                     border: 'none',
-                                                    fontWeight: speed === s ? 600 : 400
+                                                    fontWeight: speed === s ? 600 : 400,
+                                                    transition: 'all 0.2s'
                                                 }}
                                             >
                                                 {s}x
@@ -582,9 +589,22 @@ export default function SettingsMenu({
                                     <Toggle checked={showStats} onChange={toggleStats} />
                                 </SettingItem>
 
-                                <div style={{ marginTop: '25px', display: 'flex', gap: '10px' }}>
-                                    <button onClick={takeScreenshot} style={actionButtonStyle}>
-                                        <Camera size={16} /> Screenshot
+                                <div style={{ marginTop: '16px' }}>
+                                    <button onClick={takeScreenshot} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        padding: '10px 16px',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.08)',
+                                        borderRadius: '8px',
+                                        color: '#fff',
+                                        cursor: 'pointer',
+                                        fontSize: '13px',
+                                        fontWeight: 500,
+                                        transition: 'all 0.2s'
+                                    }}>
+                                        <Camera size={14} /> Screenshot
                                     </button>
                                 </div>
                             </div>
@@ -595,56 +615,88 @@ export default function SettingsMenu({
                 {
                     activeTab === 'general' && (
                         <>
-                            <div style={{ padding: '30px 40px 10px', flexShrink: 0 }}>
-                                <h2 style={headerStyle}>General Settings</h2>
-                                <div style={sectionSpacer}></div>
+                            <div style={{ padding: 'clamp(12px, 2.5vh, 24px) clamp(16px, 3vw, 32px) clamp(6px, 1vh, 12px)', flexShrink: 0 }}>
+                                <h2 style={headerStyle}>General</h2>
                             </div>
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '0 40px 30px' }} className="custom-scroll">
-                                <SettingItem label="Always on Top" description="Keep the player window floating above other apps.">
+                            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 clamp(16px, 3vw, 32px) clamp(12px, 2vh, 24px)' }} className="custom-scroll">
+                                <SettingItem label="Always on Top" description="Keep player above other windows">
                                     <Toggle checked={alwaysOnTop} onChange={toggleAlwaysOnTop} />
                                 </SettingItem>
 
-                                <SettingItem label="Legal Information" description="View license agreements and privacy policy.">
-                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button
-                                            onClick={() => setLegalDoc({ file: 'TERMS.md', title: 'Terms of Service' })}
-                                            style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
-                                        >
-                                            Terms
-                                        </button>
-                                        <button
-                                            onClick={() => setLegalDoc({ file: 'PRIVACY.md', title: 'Privacy Policy' })}
-                                            style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
-                                        >
-                                            Privacy
-                                        </button>
-                                        <button
-                                            onClick={() => setLegalDoc({ file: 'EULA.txt', title: 'End User License Agreement' })}
-                                            style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
-                                        >
-                                            EULA
-                                        </button>
-                                        <button
-                                            onClick={() => setLegalDoc({ file: 'CREDITS.md', title: 'Open Source Credits' })}
-                                            style={{ ...actionButtonStyle, fontSize: '11px', padding: '6px 12px' }}
-                                        >
-                                            Credits
-                                        </button>
+                                <div style={{ marginTop: '16px' }}>
+                                    <label style={labelStyle}>Legal</label>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                        {[
+                                            { file: 'TERMS.md', title: 'Terms of Service', label: 'Terms' },
+                                            { file: 'PRIVACY.md', title: 'Privacy Policy', label: 'Privacy' },
+                                            { file: 'EULA.txt', title: 'End User License Agreement', label: 'EULA' },
+                                            { file: 'CREDITS.md', title: 'Open Source Credits', label: 'Credits' }
+                                        ].map(doc => (
+                                            <button
+                                                key={doc.file}
+                                                onClick={() => setLegalDoc({ file: doc.file, title: doc.title })}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    background: 'rgba(255,255,255,0.05)',
+                                                    border: '1px solid rgba(255,255,255,0.08)',
+                                                    borderRadius: '6px',
+                                                    color: 'rgba(255,255,255,0.7)',
+                                                    cursor: 'pointer',
+                                                    fontSize: '11px',
+                                                    fontWeight: 500,
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                {doc.label}
+                                            </button>
+                                        ))}
                                     </div>
-                                </SettingItem>
+                                </div>
 
-                                <div style={{ marginTop: '25px', display: 'flex', gap: '10px' }}>
-                                    <button onClick={openConfig} style={actionButtonStyle}>
-                                        <FileVideo size={16} /> Open MPV Folder
+                                <div style={{ marginTop: '20px', display: 'flex', gap: '8px' }}>
+                                    <button
+                                        onClick={openConfig}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            padding: '10px 14px',
+                                            background: 'rgba(255,255,255,0.05)',
+                                            border: '1px solid rgba(255,255,255,0.08)',
+                                            borderRadius: '8px',
+                                            color: '#fff',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: 500,
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        <FileVideo size={14} /> MPV Folder
                                     </button>
-                                    <button onClick={() => ipcRenderer.send('mpv-update-ytdl')} style={actionButtonStyle}>
-                                        <RefreshCw size={16} /> Update Engines
+                                    <button
+                                        onClick={() => ipcRenderer.send('mpv-update-ytdl')}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            padding: '10px 14px',
+                                            background: 'rgba(255,255,255,0.05)',
+                                            border: '1px solid rgba(255,255,255,0.08)',
+                                            borderRadius: '8px',
+                                            color: '#fff',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: 500,
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        <RefreshCw size={14} /> Update Engines
                                     </button>
                                 </div>
                             </div>
 
-                            <div style={{ marginTop: 'auto', paddingTop: '40px', fontSize: '11px', color: 'rgba(255,255,255,0.2)', textAlign: 'center' }}>
-                                NauticPlayer v1.0.2 &bull; by NauticGames&trade;
+                            <div style={{ padding: '12px 32px', fontSize: '10px', color: 'rgba(255,255,255,0.15)', textAlign: 'center' }}>
+                                NauticPlayer v1.0.2 • NauticGames™
                             </div>
                         </>
                     )
@@ -654,25 +706,25 @@ export default function SettingsMenu({
                     onClick={onClose}
                     style={{
                         position: 'absolute',
-                        top: '25px',
-                        right: '25px',
+                        top: 'clamp(8px, 1.5vh, 25px)',
+                        right: 'clamp(8px, 1.5vw, 25px)',
                         background: 'rgba(255,255,255,0.05)',
                         border: 'none',
                         borderRadius: '50%',
-                        width: '32px',
-                        height: '32px',
+                        width: 'clamp(24px, 4vw, 32px)',
+                        height: 'clamp(24px, 4vw, 32px)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         color: 'rgba(255,255,255,0.7)',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
-                        zIndex: 610 // Higher than content
+                        zIndex: 610
                     }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                 >
-                    <X size={18} />
+                    <X size={14} />
                 </button>
 
                 {legalDoc && (
@@ -854,36 +906,60 @@ const TabButton = ({ active, onClick, icon: Icon, label }: any) => (
         style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            padding: '14px 20px',
+            justifyContent: 'center',
+            gap: 'clamp(4px, 1vw, 12px)',
+            padding: 'clamp(8px, 1.5vh, 14px) clamp(8px, 1.5vw, 20px)',
             background: active ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
             border: 'none',
-            borderRadius: '12px', // More internal rounding
+            borderRadius: 'clamp(6px, 1vw, 12px)',
             color: active ? '#fff' : 'rgba(255, 255, 255, 0.5)',
             cursor: 'pointer',
             textAlign: 'left',
-            fontSize: '14px',
+            fontSize: 'clamp(10px, 1.3vw, 14px)',
             fontWeight: active ? 600 : 500,
             transition: 'all 0.2s ease',
             position: 'relative',
+            width: '100%',
+            minWidth: 0,
+            overflow: 'hidden'
         }}
     >
-        <Icon size={18} strokeWidth={active ? 2.5 : 2} style={{ opacity: active ? 1 : 0.7 }} />
-        {label}
+        <Icon size={16} strokeWidth={active ? 2.5 : 2} style={{ opacity: active ? 1 : 0.7, flexShrink: 0 }} />
+        <span style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            display: 'block'
+        }}>
+            {label}
+        </span>
         {active && <div style={{
             position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-            height: '20px', width: '3px', background: '#3b82f6', borderRadius: '0 4px 4px 0'
+            height: 'clamp(12px, 2vh, 20px)', width: '3px', background: '#3b82f6', borderRadius: '0 4px 4px 0'
         }} />}
     </button>
 )
 
 const SettingItem = ({ label, description, children }: any) => (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '25px', paddingBottom: '25px', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-        <div style={{ paddingRight: '20px' }}>
-            <div style={{ color: '#fff', fontSize: '15px', fontWeight: 500, letterSpacing: '0.2px' }}>{label}</div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginTop: '6px', lineHeight: '1.4' }}>{description}</div>
+    <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 'clamp(10px, 1.5vh, 14px) clamp(10px, 1.5vw, 16px)',
+        marginBottom: 'clamp(4px, 1vh, 8px)',
+        borderRadius: 'clamp(6px, 1vw, 10px)',
+        background: 'rgba(255,255,255,0.03)',
+        transition: 'background 0.2s ease',
+        gap: 'clamp(8px, 1vw, 16px)'
+    }}
+        onMouseEnter={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+        onMouseLeave={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+    >
+        <div style={{ paddingRight: 'clamp(8px, 1vw, 16px)', flex: 1, minWidth: 0 }}>
+            <div style={{ color: '#fff', fontSize: 'clamp(12px, 1.4vw, 14px)', fontWeight: 500 }}>{label}</div>
+            {description && <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 'clamp(9px, 1.1vw, 11px)', marginTop: 'clamp(2px, 0.5vh, 4px)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{description}</div>}
         </div>
-        <div>
+        <div style={{ flexShrink: 0 }}>
             {children}
         </div>
     </div>
@@ -917,24 +993,19 @@ const Toggle = ({ checked, onChange }: any) => (
 )
 
 const headerStyle = {
-    color: '#fff',
-    fontSize: '24px',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '11px',
     fontWeight: 600,
-    letterSpacing: '-0.5px',
-    margin: 0
-}
-
-const sectionSpacer = {
-    height: '1px',
-    background: 'linear-gradient(90deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%)',
-    margin: '15px 0 30px 0'
+    letterSpacing: '1px',
+    textTransform: 'uppercase' as const,
+    margin: '0 0 16px 4px'
 }
 
 const labelStyle = {
     display: 'block',
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: '12px',
-    marginBottom: '10px',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '11px',
+    marginBottom: '8px',
     fontWeight: 600,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px'

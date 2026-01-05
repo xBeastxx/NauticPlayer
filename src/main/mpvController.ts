@@ -8,6 +8,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import * as net from 'net'
+import { getIsFullScreen } from './index'
 
 let mpvProcess: ChildProcess | null = null
 let ipcSocket: net.Socket | null = null
@@ -153,6 +154,13 @@ function connectToMpvSocket(uiSender: Electron.WebContents, hostWindow: BrowserW
 function handleMpvMessage(msg: any, uiSender: Electron.WebContents, hostWindow: BrowserWindow): void {
   if (uiSender.isDestroyed()) return
 
+  if (msg.event === 'end-file') {
+      console.log('MPV End File:', msg)
+      if (msg.reason === 'error') {
+          uiSender.send('mpv-error', 'Failed to load file')
+      }
+  }
+
   if (msg.event === 'property-change') {
     switch (msg.name) {
       case 'time-pos':
@@ -199,9 +207,15 @@ function handleMpvMessage(msg: any, uiSender: Electron.WebContents, hostWindow: 
 function resizeWindowToVideo(mainWindow: BrowserWindow, videoW: number, videoH: number) {
   if (!videoW || !videoH) return
   
-  // CRITICAL FIX: Do NOT auto-resize if maximized (causes zoom/snap glitch)
+  // CRITICAL FIX: Do NOT auto-resize if maximized or fullscreen
   if (mainWindow.isMaximized()) {
       console.log('Skipping auto-resize because window is MAXIMIZED')
+      return
+  }
+  
+  // Use manual fullscreen tracking (not Electron's isFullScreen)
+  if (getIsFullScreen()) {
+      console.log('Skipping auto-resize because window is in MANUAL FULLSCREEN')
       return
   }
   

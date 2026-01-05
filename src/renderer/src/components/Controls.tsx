@@ -1,15 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock } from 'lucide-react'
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock, Loader2 } from 'lucide-react'
 import SettingsMenu from './SettingsMenu'
 
 // Use window.require for Electron in Vite context
 const { ipcRenderer } = (window as any).require('electron')
 
 // Define the shape of our buttons
-const FloatingButton = ({ children, onClick, hero = false }: any) => (
+const FloatingButton = ({ children, onClick, hero = false, ...props }: any) => (
     <button
         className={`floating-btn ${hero ? 'hero-btn' : ''}`}
         onClick={onClick}
+        {...props}
         style={{
             padding: hero ? '12px' : '8px',
             background: 'transparent',
@@ -38,7 +39,7 @@ const formatTime = (seconds: number): string => {
 
 // ... imports
 
-export default function Controls({ showSettings, setShowSettings, filename, onMouseEnter, onMouseLeave }: any): JSX.Element {
+export default function Controls({ showSettings, setShowSettings, filename, onMouseEnter, onMouseLeave, isLoadingUrl, setIsLoadingUrl, showUrlInput, setShowUrlInput }: any): JSX.Element {
     // Playback State
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
@@ -50,9 +51,16 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
     const [isMuted, setIsMuted] = useState(false)
     const [volume, setVolume] = useState(60)
     const [prevVolume, setPrevVolume] = useState(60)
-    // URL Input State
-    const [showUrlInput, setShowUrlInput] = useState(false)
+    // URL Input State (Lifted to App)
     const [streamUrl, setStreamUrl] = useState('')
+    // const [isLoadingUrl, setIsLoadingUrl] = useState(false) <-- Lifted to App
+    const isLoadingUrlRef = useRef(false) // Ref to access current state in listeners
+
+    // Sync REF with PROP
+    useEffect(() => {
+        isLoadingUrlRef.current = isLoadingUrl
+    }, [isLoadingUrl])
+
     const [isShaderOn, setIsShaderOn] = useState(false)
     // Settings State
     // const [showSettings, setShowSettings] = useState(false) <-- Lifted to App
@@ -85,10 +93,28 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
 
         const onMpvTime = (_event: any, time: number) => {
             if (!isDraggingTime) setCurrentTime(time)
+            // If we receive ANY time update, playback has definitely started
+            if (isLoadingUrlRef.current) {
+                setIsLoadingUrl(false)
+                setShowUrlInput(false)
+            }
         }
 
         const onMpvDuration = (_event: any, dur: number) => {
             setDuration(dur)
+            // When we get a valid duration, loading is complete
+            if (dur > 0 && isLoadingUrlRef.current) {
+                setIsLoadingUrl(false)
+                setShowUrlInput(false)
+            }
+        }
+
+        const onMpvError = () => {
+            // If error occurs, reset loading state so user isn't stuck
+            if (isLoadingUrlRef.current) {
+                setIsLoadingUrl(false)
+                // Don't close input on error so user can retry
+            }
         }
 
         const onMpvPaused = (_event: any, paused: boolean) => {
@@ -101,6 +127,11 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
 
         const onMpvTracks = (_event: any, trackList: any[]) => {
             setTracks(trackList)
+            // If we get tracks, file is loaded
+            if (trackList.length > 0 && isLoadingUrlRef.current) {
+                setIsLoadingUrl(false)
+                setShowUrlInput(false)
+            }
         }
 
         ipcRenderer.on('mpv-ready', onMpvReady)
@@ -109,6 +140,7 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
         ipcRenderer.on('mpv-paused', onMpvPaused)
         ipcRenderer.on('mpv-volume', onMpvVolume)
         ipcRenderer.on('mpv-tracks', onMpvTracks)
+        ipcRenderer.on('mpv-error', onMpvError)
 
         return () => {
             ipcRenderer.removeListener('mpv-ready', onMpvReady)
@@ -117,6 +149,7 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
             ipcRenderer.removeListener('mpv-paused', onMpvPaused)
             ipcRenderer.removeListener('mpv-volume', onMpvVolume)
             ipcRenderer.removeListener('mpv-tracks', onMpvTracks)
+            ipcRenderer.removeListener('mpv-error', onMpvError)
         }
     }, [isDraggingTime])
 
@@ -220,7 +253,14 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
             if (showUrlInput && urlInputRef.current && !urlInputRef.current.contains(e.target as Node)) {
                 // Don't close if clicking the globe button
                 const globeButton = document.querySelector('[data-globe-button]')
-                if (globeButton && globeButton.contains(e.target as Node)) return
+                // Check if the target or any of its parents is the globe button
+                const targetNode = e.target as Node;
+                const isGlobeClick = (targetNode as Element).closest && (targetNode as Element).closest('[data-globe-button]');
+
+                if (isGlobeClick) {
+                    return
+                }
+
                 setShowUrlInput(false)
             }
 
@@ -254,8 +294,10 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
 
     const handleUrlSubmit = (e: React.FormEvent) => {
         e.preventDefault()
-        if (streamUrl) {
+        if (streamUrl && !isLoadingUrl) {
+            setIsLoadingUrl(true)
             ipcRenderer.send('mpv-load', streamUrl)
+            // Close input immediately as requested
             setShowUrlInput(false)
             setStreamUrl('')
         }
@@ -288,6 +330,8 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
             {showUrlInput && (
                 <div
                     ref={urlInputRef}
+                    onMouseEnter={onMouseEnter}
+                    onMouseLeave={onMouseLeave}
                     style={{
                         position: 'absolute',
                         bottom: '85px',
@@ -336,172 +380,195 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                 </div>
             )}
 
-            {/* Floating Timeline */}
+            {/* Controls Wrapper - catches hover events for the whole bottom area */}
             <div
-                ref={timelineRef}
-                onMouseDown={handleTimelineMouseDown}
                 onMouseEnter={onMouseEnter}
                 onMouseLeave={onMouseLeave}
                 style={{
-                    width: '60%',
-                    maxWidth: '600px',
-                    height: '4px',
-                    background: 'rgba(255,255,255,0.1)',
-                    borderRadius: '2px',
+                    width: '100%',
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    position: 'relative',
-                    cursor: 'pointer',
-                    pointerEvents: 'auto',
-                    marginBottom: '10px'
+                    gap: '20px', // Spacing between timeline and buttons
+                    pointerEvents: 'auto', // Catch clicks/hover in this area
+                    paddingBottom: '15px' // Extra hit area at bottom
                 }}
             >
-                {/* ... (Timeline Content) ... */}
-                <div style={{
-                    width: `${timePercent}%`,
-                    height: '100%',
-                    background: '#fff',
-                    borderRadius: '2px',
-                    boxShadow: '0 0 10px rgba(255,255,255,0.5)'
-                }}></div>
+                {/* Floating Timeline */}
+                <div
+                    ref={timelineRef}
+                    onMouseDown={handleTimelineMouseDown}
+                    style={{
+                        width: '60%',
+                        maxWidth: '600px',
+                        height: '4px',
+                        background: 'rgba(255,255,255,0.1)',
+                        borderRadius: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        position: 'relative',
+                        cursor: 'pointer',
+                        marginBottom: '10px'
+                    }}
+                >
+                    {/* ... (Timeline Content) ... */}
+                    <div style={{
+                        width: `${timePercent}%`,
+                        height: '100%',
+                        background: '#fff',
+                        borderRadius: '2px',
+                        boxShadow: '0 0 10px rgba(255,255,255,0.5)'
+                    }}></div>
 
-                <div style={{
-                    width: '12px',
-                    height: '12px',
-                    background: '#fff',
-                    borderRadius: '50%',
-                    position: 'absolute',
-                    left: `${timePercent}%`,
-                    transform: 'translateX(-50%)',
-                    boxShadow: '0 0 15px #fff',
-                    cursor: 'grab'
-                }}></div>
+                    <div style={{
+                        width: '12px',
+                        height: '12px',
+                        background: '#fff',
+                        borderRadius: '50%',
+                        position: 'absolute',
+                        left: `${timePercent}%`,
+                        transform: 'translateX(-50%)',
+                        boxShadow: '0 0 15px #fff',
+                        cursor: 'grab'
+                    }}></div>
 
-                <span style={{ position: 'absolute', left: -45, fontSize: '12px', fontFamily: 'Inter', opacity: 0.7 }}>{formatTime(currentTime)}</span>
-                <span style={{ position: 'absolute', right: -45, fontSize: '12px', fontFamily: 'Inter', opacity: 0.7 }}>{formatTime(duration)}</span>
-            </div>
+                    <span style={{ position: 'absolute', left: -45, fontSize: '12px', fontFamily: 'Inter', opacity: 0.7 }}>{formatTime(currentTime)}</span>
+                    <span style={{ position: 'absolute', right: -45, fontSize: '12px', fontFamily: 'Inter', opacity: 0.7 }}>{formatTime(duration)}</span>
+                </div>
 
-            {/* Floating Buttons Cluster */}
-            <div
-                style={{ display: 'flex', alignItems: 'center', gap: '30px' }}
-                onMouseEnter={onMouseEnter}
-                onMouseLeave={onMouseLeave}
-            >
+                {/* Floating Buttons Cluster */}
+                <div
+                    style={{ display: 'flex', alignItems: 'center', gap: '30px' }}
+                >
 
-                {/* Left Tools */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    {/* Left Tools */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
 
-                    {/* Expandable Volume Control */}
-                    <div
-                        onMouseEnter={() => setShowVolume(true)}
-                        onMouseLeave={() => !isDraggingVolume && setShowVolume(false)}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            background: showVolume ? 'rgba(0,0,0,0.2)' : 'transparent',
-                            borderRadius: '30px',
-                            paddingRight: showVolume ? '12px' : '0',
-                            transition: 'all 0.3s ease',
-                            pointerEvents: 'auto'
-                        }}
-                    >
-                        <FloatingButton onClick={toggleMute}>
-                            {isMuted || volume === 0 ? <VolumeX size={18} color="#ff5555" /> : <Volume2 size={18} />}
-                        </FloatingButton>
-
+                        {/* Expandable Volume Control */}
                         <div
+                            onMouseEnter={() => setShowVolume(true)}
+                            onMouseLeave={() => !isDraggingVolume && setShowVolume(false)}
                             style={{
-                                width: showVolume ? '80px' : '0px',
-                                opacity: showVolume ? 1 : 0,
-                                overflow: 'visible',
-                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                marginLeft: '5px'
+                                background: showVolume ? 'rgba(0,0,0,0.2)' : 'transparent',
+                                borderRadius: '30px',
+                                paddingRight: showVolume ? '12px' : '0',
+                                transition: 'all 0.3s ease',
+                                pointerEvents: 'auto'
                             }}
                         >
+                            <FloatingButton onClick={toggleMute}>
+                                {isMuted || volume === 0 ? <VolumeX size={18} color="#ff5555" /> : <Volume2 size={18} />}
+                            </FloatingButton>
+
                             <div
-                                ref={volumeRef}
-                                onMouseDown={handleVolumeMouseDown}
                                 style={{
-                                    width: '100%',
-                                    height: '4px',
-                                    background: 'rgba(255,255,255,0.1)',
-                                    borderRadius: '2px',
-                                    position: 'relative',
-                                    cursor: 'pointer'
+                                    width: showVolume ? '80px' : '0px',
+                                    opacity: showVolume ? 1 : 0,
+                                    overflow: 'visible',
+                                    transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    marginLeft: '5px'
                                 }}
                             >
-                                <div style={{
-                                    width: `${Math.min(100, volume)}%`,
-                                    height: '100%',
-                                    background: '#fff',
-                                    borderRadius: '2px',
-                                    boxShadow: '0 0 10px rgba(255,255,255,0.5)'
-                                }}></div>
+                                <div
+                                    ref={volumeRef}
+                                    onMouseDown={handleVolumeMouseDown}
+                                    style={{
+                                        width: '100%',
+                                        height: '4px',
+                                        background: 'rgba(255,255,255,0.1)',
+                                        borderRadius: '2px',
+                                        position: 'relative',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: `${Math.min(100, volume)}%`,
+                                        height: '100%',
+                                        background: '#fff',
+                                        borderRadius: '2px',
+                                        boxShadow: '0 0 10px rgba(255,255,255,0.5)'
+                                    }}></div>
 
-                                <div style={{
-                                    width: '10px',
-                                    height: '10px',
-                                    background: '#fff',
-                                    borderRadius: '50%',
-                                    position: 'absolute',
-                                    left: `${Math.min(100, volume)}%`,
-                                    top: '50%',
-                                    transform: 'translate(-50%, -50%)',
-                                    boxShadow: '0 0 12px #fff',
-                                    cursor: 'grab'
-                                }}></div>
+                                    <div style={{
+                                        width: '10px',
+                                        height: '10px',
+                                        background: '#fff',
+                                        borderRadius: '50%',
+                                        position: 'absolute',
+                                        left: `${Math.min(100, volume)}%`,
+                                        top: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        boxShadow: '0 0 12px #fff',
+                                        cursor: 'grab'
+                                    }}></div>
+                                </div>
+
+                                <span style={{
+                                    fontSize: '11px',
+                                    fontFamily: 'Inter',
+                                    opacity: 0.7,
+                                    marginLeft: '8px',
+                                    minWidth: '32px',
+                                    textAlign: 'right'
+                                }}>
+                                    {Math.round(volume)}%
+                                </span>
                             </div>
-
-                            <span style={{
-                                fontSize: '11px',
-                                fontFamily: 'Inter',
-                                opacity: 0.7,
-                                marginLeft: '8px',
-                                minWidth: '32px',
-                                textAlign: 'right'
-                            }}>
-                                {Math.round(volume)}%
-                            </span>
                         </div>
+
+                        <FloatingButton onClick={handleOpenFile}>
+                            <FolderOpen size={18} color="rgba(255,255,255,0.7)" />
+                        </FloatingButton>
+
+                        <FloatingButton onClick={(e: any) => {
+                            console.log('Globe button clicked!', { isLoadingUrl, showUrl: showUrlInput });
+                            e.stopPropagation();
+                            if (!isLoadingUrl) {
+                                console.log('Toggling showUrlInput to:', !showUrlInput);
+                                setShowUrlInput(!showUrlInput)
+                            } else {
+                                console.log('Action blocked: isLoadingUrl is true');
+                            }
+                        }} data-globe-button="true">
+                            {isLoadingUrl ? (
+                                <div className="loader"></div>
+                            ) : (
+                                <Globe size={18} color={showUrlInput ? "#fff" : "rgba(255,255,255,0.7)"} />
+                            )}
+                        </FloatingButton>
                     </div>
 
-                    <FloatingButton onClick={handleOpenFile}>
-                        <FolderOpen size={18} color="rgba(255,255,255,0.7)" />
-                    </FloatingButton>
+                    {/* Playback Controls */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <FloatingButton onClick={() => ipcRenderer.send('mpv-jump', -10)}><SkipBack size={24} fill="#fff" /></FloatingButton>
 
-                    <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowUrlInput(!showUrlInput) }} data-globe-button="true">
-                        <Globe size={18} color={showUrlInput ? "#fff" : "rgba(255,255,255,0.7)"} />
-                    </FloatingButton>
-                </div>
+                        <FloatingButton onClick={togglePlay} hero>
+                            {isPlaying ? (
+                                <Pause size={28} fill="#fff" stroke="none" />
+                            ) : (
+                                <Play size={28} fill="#fff" stroke="none" style={{ marginLeft: '4px' }} />
+                            )}
+                        </FloatingButton>
 
-                {/* Playback Controls */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <FloatingButton onClick={() => ipcRenderer.send('mpv-jump', -10)}><SkipBack size={24} fill="#fff" /></FloatingButton>
-
-                    <FloatingButton onClick={togglePlay} hero>
-                        {isPlaying ? (
-                            <Pause size={28} fill="#fff" stroke="none" />
-                        ) : (
-                            <Play size={28} fill="#fff" stroke="none" style={{ marginLeft: '4px' }} />
-                        )}
-                    </FloatingButton>
-
-                    <FloatingButton onClick={() => ipcRenderer.send('mpv-jump', 10)}><SkipForward size={24} fill="#fff" /></FloatingButton>
-                </div>
+                        <FloatingButton onClick={() => ipcRenderer.send('mpv-jump', 10)}><SkipForward size={24} fill="#fff" /></FloatingButton>
+                    </div>
 
 
-                {/* Right Tools - Cleaner, just Settings + Fullscreen */}
-                <div style={{ display: 'flex', gap: '15px' }}>
+                    {/* Right Tools - Cleaner, just Settings + Fullscreen */}
+                    <div style={{ display: 'flex', gap: '15px' }}>
 
-                    <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowSettings(!showSettings) }} data-settings-button="true">
-                        <Settings size={20} color={showSettings ? "#fff" : "rgba(255,255,255,0.7)"} />
-                    </FloatingButton>
+                        <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowSettings(!showSettings) }} data-settings-button="true">
+                            <Settings size={20} color={showSettings ? "#fff" : "rgba(255,255,255,0.7)"} />
+                        </FloatingButton>
 
-                    <FloatingButton onClick={() => { ipcRenderer.send('toggle-fullscreen'); setIsFullscreen(!isFullscreen) }}>
-                        {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-                    </FloatingButton>
+                        <FloatingButton onClick={() => { ipcRenderer.send('toggle-fullscreen'); setIsFullscreen(!isFullscreen) }}>
+                            {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+                        </FloatingButton>
+                    </div>
                 </div>
             </div>
 

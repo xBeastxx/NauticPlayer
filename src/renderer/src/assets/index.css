@@ -8,10 +8,51 @@ body {
   color: #fff;
   font-family: 'Inter', sans-serif;
 }
+
 .container {
   text-align: center;
 }
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+}
+
+/* Custom Loader */
+.loader {
+  width: 22px;
+  /* Adjusted size for button */
+  aspect-ratio: 1;
+  display: grid;
+}
+
+.loader::before,
+.loader::after {
+  content: "";
+  grid-area: 1/1;
+  --c: no-repeat radial-gradient(farthest-side, #3b82f6 92%, #0000);
+  /* Adjusted to App Blue */
+  background:
+    var(--c) 50% 0,
+    var(--c) 50% 100%,
+    var(--c) 100% 50%,
+    var(--c) 0 50%;
+  background-size: 6px 6px;
+  /* Scaled down */
+  animation: l12 1s infinite;
+}
+
+.loader::before {
+  margin: 2px;
+  /* Scaled down */
+  filter: hue-rotate(45deg);
+  background-size: 4px 4px;
+  /* Scaled down */
+  animation-timing-function: linear
+}
+
+@keyframes l12 {
+  100% {
+    transform: rotate(.5turn)
+  }
 }

@@ -101,14 +101,27 @@ function App(): JSX.Element {
     const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const [subDelay, setSubDelay] = useState(0) // Track subtitle delay
 
+    // URL Loading State (Lifted from Controls to manage visibility)
+    const [isLoadingUrl, setIsLoadingUrl] = useState(false)
+    const [showUrlInput, setShowUrlInput] = useState(false)
+
+    // Force controls visibility when loading URL or URL Input is open
+    useEffect(() => {
+        if (isLoadingUrl || showUrlInput) {
+            setShowControls(true)
+            document.body.style.cursor = 'default'
+            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
+        }
+    }, [isLoadingUrl, showUrlInput])
+
     const handleMouseMove = () => {
         setShowControls(true)
         document.body.style.cursor = 'default'
 
         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
 
-        // Only schedule hide if NOT hovering controls
-        if (!isHoveringControls && !showSettings) {
+        // Only schedule hide if NOT hovering controls, NOT in settings, NOT loading URL, and NOT typing URL
+        if (!isHoveringControls && !showSettings && !isLoadingUrl && !showUrlInput) {
             hideTimeoutRef.current = setTimeout(() => {
                 setShowControls(false)
                 document.body.style.cursor = 'none'
@@ -226,7 +239,7 @@ function App(): JSX.Element {
             window.removeEventListener('keydown', handleKeyDown)
             window.removeEventListener('wheel', handleWheel);
         }
-    }, [showSettings, subDelay, isHoveringControls]) // Fixed stale closure 
+    }, [showSettings, subDelay, isHoveringControls, isLoadingUrl, showUrlInput]) // Fixed stale closure 
     // actually handleMouseMove captures the scope variable. 'showSettings' will be stale in the timeout if we don't be careful.
     // Better to use a ref for showSettings or recreate the handler.
     // Simplest is to add showSettings to dependency array.
@@ -382,26 +395,7 @@ function App(): JSX.Element {
                 >
                     <Minus size={14} />
                 </button>
-                <button
-                    onClick={() => ipcRenderer.send('toggle-fullscreen')}
-                    style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '0',
-                        border: 'none',
-                        background: 'transparent',
-                        color: 'rgba(255,255,255,0.6)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)' }}
-                >
-                    {isMaximized ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                </button>
+
                 <button
                     onClick={() => ipcRenderer.send('close-window')}
                     style={{
@@ -442,6 +436,10 @@ function App(): JSX.Element {
                     filename={filename}
                     onMouseEnter={() => setIsHoveringControls(true)}
                     onMouseLeave={() => setIsHoveringControls(false)}
+                    isLoadingUrl={isLoadingUrl}
+                    setIsLoadingUrl={setIsLoadingUrl}
+                    showUrlInput={showUrlInput}
+                    setShowUrlInput={setShowUrlInput}
                 />
             </div>
 
