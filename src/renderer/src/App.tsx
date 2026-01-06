@@ -375,6 +375,18 @@ function App(): JSX.Element {
                 transition: 'opacity 0.5s ease',
                 pointerEvents: showControls ? 'auto' : 'none'
             } as any}>
+                {/* Smoke Fog Background for Controls */}
+                <div style={{
+                    position: 'absolute',
+                    top: '-80px',
+                    right: '-80px',
+                    width: '180px',
+                    height: '180px',
+                    background: 'radial-gradient(circle at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.2) 40%, transparent 70%)',
+                    zIndex: -1,
+                    pointerEvents: 'none',
+                    filter: 'blur(10px)'
+                }}></div>
                 <button
                     onClick={() => ipcRenderer.send('minimize-window')}
                     style={{

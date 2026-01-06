@@ -18,6 +18,46 @@ export default function LegalModal({ filename, title, onClose }: LegalModalProps
 
     // Simple parser to make Markdown look nice without heavy libraries
     const renderContent = (text: string) => {
+        // Helper to parse inline elements (bold and links)
+        const parseInline = (line: string, keyPrefix: string) => {
+            // Match bold (**text**) and links [text](url)
+            const regex = /(\*\*.*?\*\*|\[.*?\]\(.*?\))/g
+            const parts = line.split(regex)
+
+            return parts.map((part, j) => {
+                // Bold
+                if (part.startsWith('**') && part.endsWith('**')) {
+                    return <strong key={`${keyPrefix}-${j}`} style={{ color: '#fff' }}>{part.slice(2, -2)}</strong>
+                }
+                // Link [text](url)
+                const linkMatch = part.match(/\[(.*?)\]\((.*?)\)/)
+                if (linkMatch) {
+                    return (
+                        <a
+                            key={`${keyPrefix}-${j}`}
+                            href={linkMatch[2]}
+                            onClick={(e) => {
+                                e.preventDefault()
+                                ipcRenderer.invoke('open-external', linkMatch[2])
+                            }}
+                            style={{
+                                color: '#3b82f6',
+                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                            onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                        >
+                            {linkMatch[1]} 🔗
+                        </a>
+                    )
+                }
+                return part
+            })
+        }
+
         return text.split('\n').map((line, i) => {
             if (line.startsWith('# ')) {
                 return <h1 key={i} style={{ fontSize: '24px', fontWeight: 700, margin: '25px 0 15px', color: '#fff' }}>{line.replace('# ', '')}</h1>
@@ -29,21 +69,14 @@ export default function LegalModal({ filename, title, onClose }: LegalModalProps
                 return <h3 key={i} style={{ fontSize: '16px', fontWeight: 600, margin: '15px 0 10px', color: 'rgba(255,255,255,0.9)' }}>{line.replace('### ', '')}</h3>
             }
             if (line.startsWith('- ')) {
-                return <li key={i} style={{ marginLeft: '20px', marginBottom: '8px', color: 'rgba(255,255,255,0.8)' }}>{line.replace('- ', '').replace(/\*\*(.*?)\*\*/g, (_, p1) => `<strong>${p1}</strong>`)}</li> // Hacky bold support
+                return <li key={i} style={{ marginLeft: '20px', marginBottom: '8px', color: 'rgba(255,255,255,0.8)' }}>{parseInline(line.replace('- ', ''), `li-${i}`)}</li>
             }
-            if (line.trim() === '') {
-                return <div key={i} style={{ height: '10px' }}></div>
+            if (line.trim() === '' || line.trim() === '---') {
+                return <div key={i} style={{ height: line.trim() === '---' ? '20px' : '10px', borderBottom: line.trim() === '---' ? '1px solid rgba(255,255,255,0.1)' : 'none' }}></div>
             }
-            // Basic Bold parsing for paragraphs
-            const parts = line.split(/(\*\*.*?\*\*)/g)
             return (
                 <p key={i} style={{ marginBottom: '10px', lineHeight: '1.6', color: 'rgba(255,255,255,0.8)' }}>
-                    {parts.map((part, j) => {
-                        if (part.startsWith('**') && part.endsWith('**')) {
-                            return <strong key={j} style={{ color: '#fff' }}>{part.slice(2, -2)}</strong>
-                        }
-                        return part
-                    })}
+                    {parseInline(line, `p-${i}`)}
                 </p>
             )
         })

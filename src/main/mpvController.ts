@@ -62,7 +62,7 @@ export function setupMpvController(hostWindow: BrowserWindow, uiSender: Electron
     '--hwdec=auto',
     '--panscan=1.0', // Zoom to fill (will be dynamically adjusted in fullscreen)
     '--image-display-duration=inf',
-    '--loop-file=inf',
+    '--loop-file=no',
     `--script-opts=ytdl_hook-ytdl_path=${ytdlPath}`,
     '--ytdl-raw-options=format=bestvideo+bestaudio/best'
   ]
@@ -362,6 +362,112 @@ export function setupIpcHandlers(uiSender: Electron.WebContents, hostWindow: Bro
   ipcMain.removeAllListeners('mpv-update-ytdl')
   ipcMain.on('mpv-update-ytdl', () => {
     updateYtdl(uiSender, false)
+  })
+
+  // Shader Preset Handler
+  ipcMain.removeAllListeners('mpv-set-shader-preset')
+  ipcMain.on('mpv-set-shader-preset', (_event, preset: string) => {
+    const resourcesPath = is.dev 
+      ? join(process.cwd(), 'resources')
+      : process.resourcesPath
+    const shadersPath = join(resourcesPath, 'shaders')
+
+    // Clear all existing shaders first
+    sendCommand({ command: ['change-list', 'glsl-shaders', 'clr', ''] })
+
+    if (preset === 'none') {
+      console.log('[SHADERS] Cleared all shaders')
+      if (!uiSender.isDestroyed()) uiSender.send('mpv-msg', '🎨 Shaders: Off')
+      return
+    }
+
+    // Define shader chains for each preset
+    const shaderChains: Record<string, string[]> = {
+      // === ANIME PRESETS ===
+      'anime-quality': [
+        'Anime4K_Clamp_Highlights.glsl',
+        'Anime4K_Restore_CNN_VL.glsl',
+        'Anime4K_Upscale_CNN_x2_VL.glsl',
+        'Anime4K_AutoDownscalePre_x2.glsl',
+        'Anime4K_AutoDownscalePre_x4.glsl',
+        'Anime4K_Upscale_CNN_x2_M.glsl'
+      ],
+      'anime-fast': [
+        'Anime4K_Clamp_Highlights.glsl',
+        'Anime4K_Restore_CNN_M.glsl',
+        'Anime4K_Upscale_CNN_x2_M.glsl'
+      ],
+      'anime-perf': [
+        'Anime4K_Clamp_Highlights.glsl',
+        'Anime4K_Restore_CNN_S.glsl',
+        'Anime4K_Upscale_CNN_x2_S.glsl'
+      ],
+      
+      // === UNIVERSAL PRESETS ===
+      'denoise': [
+        'Anime4K_Denoise_Bilateral_Mode.glsl',
+        'Anime4K_Deblur_DoG.glsl'
+      ],
+      'sharpen': [
+        'Anime4K_Darken_HQ.glsl',
+        'Anime4K_Thin_HQ.glsl',
+        'Anime4K_Deblur_Original.glsl'
+      ],
+      'enhance': [
+        'Anime4K_Clamp_Highlights.glsl',
+        'Anime4K_Darken_HQ.glsl',
+        'Anime4K_Deblur_DoG.glsl'
+      ],
+      
+      // === MOVIE / LIVE-ACTION PRESETS ===
+      'movie-lite': [
+        'Anime4K_Denoise_Bilateral_Mean.glsl'
+      ],
+      'movie-balanced': [
+        'Anime4K_Denoise_Bilateral_Mode.glsl',
+        'Anime4K_Deblur_DoG.glsl',
+        'Anime4K_Darken_Fast.glsl'
+      ],
+      'movie-quality': [
+        'Anime4K_Clamp_Highlights.glsl',
+        'Anime4K_Denoise_Bilateral_Mode.glsl',
+        'Anime4K_Deblur_Original.glsl',
+        'Anime4K_Darken_HQ.glsl',
+        'Anime4K_Restore_CNN_M.glsl'
+      ]
+    }
+
+    const presetNames: Record<string, string> = {
+      // Universal
+      'denoise': '🌐 Denoise',
+      'sharpen': '🌐 Sharpen',
+      'enhance': '🌐 Enhance',
+      // Anime
+      'anime-quality': '🎌 Anime Quality',
+      'anime-fast': '🎌 Anime Balanced',
+      'anime-perf': '🎌 Anime Lite',
+      // Movies
+      'movie-lite': '🎬 Movie Lite',
+      'movie-balanced': '🎬 Movie Balanced',
+      'movie-quality': '🎬 Movie Quality'
+    }
+
+    const shaders = shaderChains[preset]
+    if (!shaders) {
+      console.log('[SHADERS] Unknown preset:', preset)
+      return
+    }
+
+    // Load each shader in the chain
+    shaders.forEach(shader => {
+      const shaderPath = join(shadersPath, shader)
+      sendCommand({ command: ['change-list', 'glsl-shaders', 'append', shaderPath] })
+    })
+
+    console.log(`[SHADERS] Loaded preset: ${preset} (${shaders.length} shaders)`)
+    if (!uiSender.isDestroyed()) {
+      uiSender.send('mpv-msg', `🎨 ${presetNames[preset] || preset}`)
+    }
   })
 }
 

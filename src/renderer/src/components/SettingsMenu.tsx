@@ -10,6 +10,40 @@ import LegalModal from './LegalModal'
 
 const { ipcRenderer } = (window as any).require('electron')
 
+// Helper component for Buttons to handle hover state
+const HoverButton = ({ children, tooltip, isActive, activeColor, onClick, style }: any) => {
+    const [isHovered, setIsHovered] = useState(false)
+
+    // Merge styles carefully
+    const finalStyle = {
+        padding: '6px 12px',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontSize: '11px',
+        transition: 'all 0.2s',
+        ...style,
+        // Dynamic overrides
+        background: isActive ? (activeColor || '#3b82f6') : (isHovered ? 'rgba(255,255,255,0.15)' : (style?.background || 'rgba(255,255,255,0.05)')),
+        color: isActive ? '#fff' : (isHovered ? '#fff' : (style?.color || 'rgba(255,255,255,0.7)')),
+        fontWeight: isActive ? 600 : (style?.fontWeight || 400),
+        opacity: (isActive || isHovered) ? 1 : 0.8,
+        transform: isHovered ? 'scale(1.05)' : 'scale(1)'
+    }
+
+    return (
+        <button
+            title={tooltip}
+            onClick={onClick}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            style={finalStyle}
+        >
+            {children}
+        </button>
+    )
+}
+
 interface SettingsMenuProps {
     onClose: () => void;
     currentTracks: any[];
@@ -50,6 +84,12 @@ export default function SettingsMenu({
     const [aspectRatio, setAspectRatio] = useState(() => {
         const saved = localStorage.getItem('nautic-aspect-ratio')
         return saved || 'default'
+    })
+
+    // Shader Preset State
+    const [shaderPreset, setShaderPreset] = useState(() => {
+        const saved = localStorage.getItem('nautic-shader-preset')
+        return saved || 'none'
     })
 
     // Playback States
@@ -313,11 +353,51 @@ export default function SettingsMenu({
                 </div>
 
                 <TabButton active={activeTab === 'video'} onClick={() => handleTabClick('video')} icon={Monitor} label="Video" />
-                <TabButton active={activeTab === 'audio'} onClick={() => handleTabClick('audio')} icon={Volume2} label="Audio" />
+                <TabButton active={activeTab === 'audio'} onClick={() => handleTabClick('audio')} icon={Volume2} label="Sound" />
                 <TabButton active={activeTab === 'subs'} onClick={() => handleTabClick('subs')} icon={Subtitles} label="Subtitles" />
                 <TabButton active={activeTab === 'playback'} onClick={() => handleTabClick('playback')} icon={PlayCircle} label="Playback" />
                 <TabButton active={activeTab === 'general'} onClick={() => handleTabClick('general')} icon={Settings} label="General" />
-            </div >
+                <div style={{ flex: 1 }}></div>
+
+                {/* Donation Button */}
+                <button
+                    onClick={() => ipcRenderer.invoke('open-external', 'https://ko-fi.com/nauticgames')}
+                    title="Support Development"
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0 4px',
+                        opacity: 0.8,
+                        transition: 'all 0.2s',
+                        marginTop: 'auto',
+                        width: '100%',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        transform: 'scale(1)'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.opacity = '1'
+                        e.currentTarget.style.transform = 'scale(1.15)'
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.opacity = '0.8'
+                        e.currentTarget.style.transform = 'scale(1)'
+                    }}
+                >
+                    <img
+                        src={new URL('../assets/Donate.png', import.meta.url).href}
+                        alt="Donate"
+                        style={{
+                            width: '100%',
+                            height: 'auto',
+                            maxHeight: '150px',
+                            objectFit: 'contain',
+                            borderRadius: '8px'
+                        }}
+                    />
+                </button>
+            </div>
 
             {/* Content Area */}
             <div className="settings-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
@@ -328,13 +408,102 @@ export default function SettingsMenu({
                                 <h2 style={headerStyle}>Display</h2>
                             </div>
                             <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 clamp(16px, 3vw, 32px) clamp(12px, 2vh, 24px)' }} className="custom-scroll">
-                                <SettingItem label="Hardware Acceleration" description="Use GPU for smoother 4K/HDR playback.">
+                                <SettingItem label="Hardware Acceleration" description="Use GPU for smoother 4K/HDR playback." centered>
                                     <Toggle checked={hwDec} onChange={toggleHwDec} />
                                 </SettingItem>
 
-                                <SettingItem label="Anime4K Upscaling" description="Real-time anime upscaling algorithm (High GPU usage).">
-                                    <Toggle checked={anime4K} onChange={toggleAnime4K} />
-                                </SettingItem>
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={labelStyle}>Video Enhancement</label>
+
+                                    {/* Universal Presets */}
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>
+                                            🌐 Universal (Any Content)
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                            {[
+                                                { value: 'none', label: 'Off', tooltip: 'No video enhancement applied' },
+                                                { value: 'sharpen', label: 'Sharpen', tooltip: 'Increases image sharpness and detail clarity' },
+                                                { value: 'denoise', label: 'Denoise', tooltip: 'Reduces noise and grain from compressed video' },
+                                                { value: 'enhance', label: 'Enhance', tooltip: 'General improvement: contrast + clarity + deblur' }
+                                            ].map(opt => (
+                                                <HoverButton
+                                                    key={opt.value}
+                                                    tooltip={opt.tooltip}
+                                                    isActive={shaderPreset === opt.value}
+                                                    activeColor="#3b82f6"
+                                                    onClick={() => {
+                                                        setShaderPreset(opt.value)
+                                                        localStorage.setItem('nautic-shader-preset', opt.value)
+                                                        ipcRenderer.send('mpv-set-shader-preset', opt.value)
+                                                    }}
+                                                >
+                                                    {opt.label}
+                                                </HoverButton>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Anime Presets */}
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>
+                                            🎌 Anime / Animation
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                            {[
+                                                { value: 'anime-perf', label: 'Lite', tooltip: 'Light upscaling for low-end GPUs' },
+                                                { value: 'anime-fast', label: 'Balanced', tooltip: 'Good quality with moderate GPU usage' },
+                                                { value: 'anime-quality', label: 'Quality', tooltip: 'Maximum upscaling quality (High GPU)' }
+                                            ].map(opt => (
+                                                <HoverButton
+                                                    key={opt.value}
+                                                    tooltip={opt.tooltip}
+                                                    isActive={shaderPreset === opt.value}
+                                                    activeColor="#ec4899"
+                                                    onClick={() => {
+                                                        setShaderPreset(opt.value)
+                                                        localStorage.setItem('nautic-shader-preset', opt.value)
+                                                        ipcRenderer.send('mpv-set-shader-preset', opt.value)
+                                                    }}
+                                                >
+                                                    {opt.label}
+                                                </HoverButton>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Movies Presets */}
+                                    <div style={{ marginBottom: '8px' }}>
+                                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>
+                                            🎬 Movies / Live-Action
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                            {[
+                                                { value: 'movie-lite', label: 'Lite', tooltip: 'Light noise reduction only' },
+                                                { value: 'movie-balanced', label: 'Balanced', tooltip: 'Denoise + deblur + contrast boost' },
+                                                { value: 'movie-quality', label: 'Quality', tooltip: 'Full enhancement with restoration (High GPU)' }
+                                            ].map(opt => (
+                                                <HoverButton
+                                                    key={opt.value}
+                                                    tooltip={opt.tooltip}
+                                                    isActive={shaderPreset === opt.value}
+                                                    activeColor="#f59e0b"
+                                                    onClick={() => {
+                                                        setShaderPreset(opt.value)
+                                                        localStorage.setItem('nautic-shader-preset', opt.value)
+                                                        ipcRenderer.send('mpv-set-shader-preset', opt.value)
+                                                    }}
+                                                >
+                                                    {opt.label}
+                                                </HoverButton>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '10px', lineHeight: 1.4, textAlign: 'center' }}>
+                                        Hover over buttons for details. Quality = More GPU.
+                                    </p>
+                                </div>
 
                                 <div style={{ marginTop: '8px' }}>
                                     <label style={labelStyle}>Aspect Ratio</label>
@@ -559,24 +728,15 @@ export default function SettingsMenu({
                                     <label style={labelStyle}>Speed</label>
                                     <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
                                         {[0.5, 1.0, 1.25, 1.5, 2.0].map(s => (
-                                            <button
+                                            <HoverButton
                                                 key={s}
                                                 onClick={() => changeSpeed(s)}
-                                                style={{
-                                                    flex: 1,
-                                                    padding: '8px 12px',
-                                                    borderRadius: '8px',
-                                                    cursor: 'pointer',
-                                                    fontSize: '12px',
-                                                    background: speed === s ? '#3b82f6' : 'rgba(255, 255, 255, 0.05)',
-                                                    color: speed === s ? '#fff' : 'rgba(255,255,255,0.7)',
-                                                    border: 'none',
-                                                    fontWeight: speed === s ? 600 : 400,
-                                                    transition: 'all 0.2s'
-                                                }}
+                                                isActive={speed === s}
+                                                activeColor="#3b82f6"
+                                                style={{ flex: 1, padding: '8px 12px', fontSize: '12px' }}
                                             >
                                                 {s}x
-                                            </button>
+                                            </HoverButton>
                                         ))}
                                     </div>
                                 </div>
@@ -590,22 +750,17 @@ export default function SettingsMenu({
                                 </SettingItem>
 
                                 <div style={{ marginTop: '16px' }}>
-                                    <button onClick={takeScreenshot} style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        padding: '10px 16px',
-                                        background: 'rgba(255,255,255,0.05)',
-                                        border: '1px solid rgba(255,255,255,0.08)',
-                                        borderRadius: '8px',
-                                        color: '#fff',
-                                        cursor: 'pointer',
-                                        fontSize: '13px',
-                                        fontWeight: 500,
-                                        transition: 'all 0.2s'
-                                    }}>
-                                        <Camera size={14} /> Screenshot
-                                    </button>
+                                    <div style={{ marginTop: '16px' }}>
+                                        <HoverButton
+                                            onClick={takeScreenshot}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px',
+                                                borderRadius: '8px', fontSize: '13px', fontWeight: 500
+                                            }}
+                                        >
+                                            <Camera size={14} /> Screenshot
+                                        </HoverButton>
+                                    </div>
                                 </div>
                             </div>
                         </>
@@ -619,79 +774,54 @@ export default function SettingsMenu({
                                 <h2 style={headerStyle}>General</h2>
                             </div>
                             <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 clamp(16px, 3vw, 32px) clamp(12px, 2vh, 24px)' }} className="custom-scroll">
-                                <SettingItem label="Always on Top" description="Keep player above other windows">
+                                <SettingItem label="Always on Top" description="Keep player above other windows" centered>
                                     <Toggle checked={alwaysOnTop} onChange={toggleAlwaysOnTop} />
                                 </SettingItem>
 
                                 <div style={{ marginTop: '16px' }}>
                                     <label style={labelStyle}>Legal</label>
-                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
                                         {[
                                             { file: 'TERMS.md', title: 'Terms of Service', label: 'Terms' },
                                             { file: 'PRIVACY.md', title: 'Privacy Policy', label: 'Privacy' },
                                             { file: 'EULA.txt', title: 'End User License Agreement', label: 'EULA' },
                                             { file: 'CREDITS.md', title: 'Open Source Credits', label: 'Credits' }
                                         ].map(doc => (
-                                            <button
+                                            <HoverButton
                                                 key={doc.file}
                                                 onClick={() => setLegalDoc({ file: doc.file, title: doc.title })}
                                                 style={{
-                                                    padding: '6px 12px',
-                                                    background: 'rgba(255,255,255,0.05)',
                                                     border: '1px solid rgba(255,255,255,0.08)',
-                                                    borderRadius: '6px',
-                                                    color: 'rgba(255,255,255,0.7)',
-                                                    cursor: 'pointer',
-                                                    fontSize: '11px',
-                                                    fontWeight: 500,
-                                                    transition: 'all 0.2s'
+                                                    fontWeight: 500
                                                 }}
                                             >
                                                 {doc.label}
-                                            </button>
+                                            </HoverButton>
                                         ))}
                                     </div>
                                 </div>
 
-                                <div style={{ marginTop: '20px', display: 'flex', gap: '8px' }}>
-                                    <button
+                                <div style={{ marginTop: '20px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                    <HoverButton
                                         onClick={openConfig}
                                         style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            padding: '10px 14px',
-                                            background: 'rgba(255,255,255,0.05)',
-                                            border: '1px solid rgba(255,255,255,0.08)',
-                                            borderRadius: '8px',
-                                            color: '#fff',
-                                            cursor: 'pointer',
-                                            fontSize: '12px',
-                                            fontWeight: 500,
-                                            transition: 'all 0.2s'
+                                            display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px',
+                                            borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+                                            border: '1px solid rgba(255,255,255,0.08)'
                                         }}
                                     >
                                         <FileVideo size={14} /> MPV Folder
-                                    </button>
-                                    <button
+                                    </HoverButton>
+                                    <HoverButton
                                         onClick={() => ipcRenderer.send('mpv-update-ytdl')}
                                         style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            padding: '10px 14px',
-                                            background: 'rgba(255,255,255,0.05)',
-                                            border: '1px solid rgba(255,255,255,0.08)',
-                                            borderRadius: '8px',
-                                            color: '#fff',
-                                            cursor: 'pointer',
-                                            fontSize: '12px',
-                                            fontWeight: 500,
-                                            transition: 'all 0.2s'
+                                            display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px',
+                                            borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+                                            border: '1px solid rgba(255,255,255,0.08)'
                                         }}
                                     >
                                         <RefreshCw size={14} /> Update Engines
-                                    </button>
+                                    </HoverButton>
                                 </div>
                             </div>
 
@@ -940,22 +1070,24 @@ const TabButton = ({ active, onClick, icon: Icon, label }: any) => (
     </button>
 )
 
-const SettingItem = ({ label, description, children }: any) => (
+const SettingItem = ({ label, description, children, centered }: any) => (
     <div style={{
         display: 'flex',
+        flexDirection: centered ? 'column' : 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: centered ? 'center' : 'space-between',
         padding: 'clamp(10px, 1.5vh, 14px) clamp(10px, 1.5vw, 16px)',
         marginBottom: 'clamp(4px, 1vh, 8px)',
         borderRadius: 'clamp(6px, 1vw, 10px)',
         background: 'rgba(255,255,255,0.03)',
         transition: 'background 0.2s ease',
-        gap: 'clamp(8px, 1vw, 16px)'
+        gap: 'clamp(8px, 1vw, 16px)',
+        textAlign: centered ? 'center' : 'left'
     }}
         onMouseEnter={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
         onMouseLeave={(e: any) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
     >
-        <div style={{ paddingRight: 'clamp(8px, 1vw, 16px)', flex: 1, minWidth: 0 }}>
+        <div style={{ paddingRight: centered ? 0 : 'clamp(8px, 1vw, 16px)', flex: centered ? 'initial' : 1, minWidth: 0 }}>
             <div style={{ color: '#fff', fontSize: 'clamp(12px, 1.4vw, 14px)', fontWeight: 500 }}>{label}</div>
             {description && <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 'clamp(9px, 1.1vw, 11px)', marginTop: 'clamp(2px, 0.5vh, 4px)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{description}</div>}
         </div>

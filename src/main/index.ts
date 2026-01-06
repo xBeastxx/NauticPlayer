@@ -199,6 +199,10 @@ ipcMain.handle('get-legal-content', async (_event, filename: string) => {
     }
 })
 
+ipcMain.handle('open-external', async (_event, url: string) => {
+    shell.openExternal(url)
+})
+
   // ... Global App Logic ...
 app.whenReady().then(() => {
   logger.log('[APP] Electron app is ready')

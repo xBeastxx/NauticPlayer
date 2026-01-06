@@ -32,10 +32,15 @@ const FloatingButton = ({ children, onClick, hero = false, ...props }: any) => (
     </button>
 )
 
-// Helper to format seconds to mm:ss
+// Helper to format seconds to mm:ss or h:mm:ss
 const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60)
+    const hrs = Math.floor(seconds / 3600)
+    const mins = Math.floor((seconds % 3600) / 60)
     const secs = Math.floor(seconds % 60)
+
+    if (hrs > 0) {
+        return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
@@ -358,8 +363,21 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
             alignItems: 'center',
             gap: '20px',
             zIndex: 50,
-            pointerEvents: 'none'
         }}>
+            {/* Smoke/Fog overlay for visibility on bright videos */}
+            <div style={{
+                position: 'absolute',
+                bottom: '-15px',
+                left: 0,
+                right: 0,
+                height: '280px',
+                background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.4) 45%, rgba(0,0,0,0.15) 75%, transparent 100%)',
+                pointerEvents: 'none',
+                zIndex: -1,
+                maskImage: 'radial-gradient(ellipse 140% 100% at 50% 100%, black 30%, transparent 80%)',
+                WebkitMaskImage: 'radial-gradient(ellipse 140% 100% at 50% 100%, black 30%, transparent 80%)'
+            }} />
+
             {/* Stream URL Input Overlay */}
             {/* Stream URL Input - Floating above timeline */}
             {showUrlInput && (
