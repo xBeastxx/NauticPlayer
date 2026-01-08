@@ -18,6 +18,9 @@
   <a href="https://github.com/xBeastxx/NauticPlayer/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-Proprietary-orange?style=for-the-badge" alt="License">
   </a>
+  <a href="https://deepwiki.com/xBeastxx/NauticPlayer">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
+  </a>
 </p>
 
 <p align="center">
