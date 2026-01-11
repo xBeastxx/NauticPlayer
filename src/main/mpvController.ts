@@ -10,7 +10,7 @@ import { is } from '@electron-toolkit/utils'
 import * as net from 'net'
 import { getIsFullScreen } from './index'
 import { isYouTubeUrl, extractYouTubeMetadata, isYouTubePlaylist, extractYouTubePlaylist } from './lib/historyService'
-import { updatePlayerState, getPlayerState, broadcastFullState } from './remoteServer'
+import { updatePlayerState, getPlayerState, broadcastFullState, setCurrentFile } from './remoteServer'
 
 let mpvProcess: ChildProcess | null = null
 let ipcSocket: net.Socket | null = null
@@ -339,6 +339,11 @@ export function setupIpcHandlers(uiSender: Electron.WebContents, hostWindow: Bro
           uiSender.send('youtube-metadata', metadata)
         }
       })
+      // Clear current file for streaming (YouTube URLs can't be streamed this way)
+      setCurrentFile(null)
+    } else {
+      // Local file - set for streaming to phone
+      setCurrentFile(filePath)
     }
     
     sendCommand({ command: ['loadfile', filePath] })

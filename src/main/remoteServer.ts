@@ -1,6 +1,6 @@
 /**
- * Nautic Remote Server - Complete Rewrite
- * Real-time streaming control from mobile devices via Socket.io
+ * Nautic Remote Server
+ * Real-time streaming control and video casting from mobile devices
  */
 
 import express from 'express'
@@ -8,9 +8,10 @@ import http from 'http'
 import { Server, Socket } from 'socket.io'
 import os from 'os'
 import dgram from 'dgram'
-import { join } from 'path'
+import { join, extname } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { BrowserWindow, ipcMain } from 'electron'
+import * as fs from 'fs'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -67,9 +68,15 @@ let io: Server | null = null
 let PORT = 5678
 let connectedClients = 0
 
+// Current file being played (for streaming)
+let currentFilePath: string | null = null
+
 // Heartbeat interval
 let heartbeatInterval: NodeJS.Timeout | null = null
 const HEARTBEAT_MS = 3000 // Send state every 3 seconds
+
+// Supported video formats for browser playback
+const BROWSER_PLAYABLE = ['.mp4', '.webm', '.ogg', '.mov']
 
 // ============================================================================
 // STATE API (Used by mpvController)
@@ -110,6 +117,32 @@ export function broadcastFullState(): void {
  */
 export function broadcastState(state: Partial<PlayerState>): void {
   updatePlayerState(state)
+}
+
+/**
+ * Set the current file path for video streaming
+ */
+export function setCurrentFile(filePath: string | null): void {
+  currentFilePath = filePath
+  console.log('[Remote] Current file set to:', filePath)
+  
+  // Notify clients that streaming is available
+  if (io && filePath) {
+    const ext = extname(filePath).toLowerCase()
+    const canStream = BROWSER_PLAYABLE.includes(ext)
+    io.emit('stream-available', { 
+      available: canStream, 
+      filename: playerState.filename,
+      format: ext.replace('.', '').toUpperCase()
+    })
+  }
+}
+
+/**
+ * Get current file path
+ */
+export function getCurrentFile(): string | null {
+  return currentFilePath
 }
 
 // ============================================================================
@@ -250,6 +283,86 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
   // Fallback route
   app.get('/', (_req, res) => {
     res.sendFile(join(resourcesPath, 'index.html'))
+  })
+
+  // ============================================
+  // VIDEO STREAMING ENDPOINTS
+  // ============================================
+  
+  // Get stream info
+  app.get('/stream-info', (_req, res) => {
+    if (!currentFilePath || !fs.existsSync(currentFilePath)) {
+      return res.status(404).json({ error: 'No file loaded', available: false })
+    }
+    
+    const ext = extname(currentFilePath).toLowerCase()
+    const canStream = BROWSER_PLAYABLE.includes(ext)
+    const stat = fs.statSync(currentFilePath)
+    
+    res.json({
+      available: canStream,
+      filename: playerState.filename,
+      format: ext.replace('.', '').toUpperCase(),
+      size: stat.size,
+      duration: playerState.duration,
+      currentTime: playerState.time,
+      paused: playerState.paused
+    })
+  })
+  
+  // Stream video file with range request support
+  app.get('/stream', (req, res) => {
+    if (!currentFilePath || !fs.existsSync(currentFilePath)) {
+      return res.status(404).send('No file loaded')
+    }
+    
+    const ext = extname(currentFilePath).toLowerCase()
+    if (!BROWSER_PLAYABLE.includes(ext)) {
+      return res.status(415).send('Format not supported for browser playback')
+    }
+    
+    const stat = fs.statSync(currentFilePath)
+    const fileSize = stat.size
+    const range = req.headers.range
+    
+    // Content type mapping
+    const mimeTypes: Record<string, string> = {
+      '.mp4': 'video/mp4',
+      '.webm': 'video/webm',
+      '.ogg': 'video/ogg',
+      '.mov': 'video/quicktime'
+    }
+    const contentType = mimeTypes[ext] || 'video/mp4'
+    
+    if (range) {
+      // Handle range request (for seeking)
+      const parts = range.replace(/bytes=/, '').split('-')
+      const start = parseInt(parts[0], 10)
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+      const chunkSize = (end - start) + 1
+      
+      const file = fs.createReadStream(currentFilePath, { start, end })
+      
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*'
+      })
+      
+      file.pipe(res)
+    } else {
+      // Full file request
+      res.writeHead(200, {
+        'Content-Length': fileSize,
+        'Content-Type': contentType,
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*'
+      })
+      
+      fs.createReadStream(currentFilePath).pipe(res)
+    }
   })
 
   // Socket.io connection handler

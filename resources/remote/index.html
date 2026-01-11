@@ -6,6 +6,19 @@
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Nautic Remote</title>
+
+    <!-- PWA / Fullscreen Mode Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Nautic Remote">
+    <meta name="theme-color" content="#050505">
+    <meta name="msapplication-navbutton-color" content="#050505">
+    <meta name="apple-touch-fullscreen" content="yes">
+
+    <!-- Manifest for Android PWA -->
+    <link rel="manifest" href="/manifest.json">
+
     <style>
         :root {
             --primary: #3b82f6;
@@ -85,15 +98,11 @@
             padding: 12px 20px;
             display: flex;
             align-items: center;
-            justify-content: flex-end;
+            justify-content: space-between;
             height: 50px;
-            position: relative;
         }
 
         .logo {
-            position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
             font-size: 10px;
             font-weight: 800;
             letter-spacing: 2px;
@@ -532,10 +541,435 @@
                 transform: rotate(360deg);
             }
         }
+
+        /* === WATCH MODE === */
+        .watch-mode {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+        }
+
+        .watch-mode.show {
+            display: flex;
+        }
+
+        .watch-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.8);
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+        }
+
+        .watch-back {
+            background: none;
+            border: none;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .watch-title {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            text-align: center;
+            flex: 1;
+            padding: 0 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .watch-video-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+
+        .watch-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .watch-error {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-dim);
+        }
+
+        .watch-error h3 {
+            color: #fff;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+
+        .watch-error p {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .watch-btn-stream {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            border: none;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 auto;
+        }
+
+        .stream-badge {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+
+        .watch-fullscreen-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .watch-fullscreen-btn:active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* === INSTALL PROMPT === */
+        .install-prompt {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 16px 20px;
+            padding-bottom: calc(16px + env(safe-area-inset-bottom));
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 3000;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            animation: slideUp 0.3s ease;
+        }
+
+        .install-prompt.show {
+            display: flex;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+            }
+
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .install-prompt-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .install-prompt-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .install-prompt-text {
+            flex: 1;
+        }
+
+        .install-prompt-text h4 {
+            margin: 0 0 4px 0;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .install-prompt-text p {
+            margin: 0;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .install-prompt-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        .install-prompt-btn {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            border: none;
+            color: #fff;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .install-prompt-btn:active {
+            opacity: 0.9;
+        }
+
+        /* === iOS ONBOARDING MODAL === */
+        .onboarding-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 4000;
+            display: none;
+            flex-direction: column;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+
+        .onboarding-modal.show {
+            display: flex;
+        }
+
+        .onboarding-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+        }
+
+        .onboarding-title {
+            font-size: 17px;
+            font-weight: 600;
+        }
+
+        .onboarding-close {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .onboarding-step-info {
+            color: var(--text-dim);
+            font-size: 13px;
+        }
+
+        .onboarding-carousel {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        .onboarding-slide {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            max-width: 100%;
+        }
+
+        .onboarding-slide.active {
+            display: flex;
+        }
+
+        .onboarding-slide img {
+            max-width: 100%;
+            max-height: 50vh;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .onboarding-slide-text {
+            text-align: center;
+            font-size: 15px;
+            color: var(--text);
+            line-height: 1.5;
+            padding: 0 20px;
+        }
+
+        .onboarding-slide-text strong {
+            color: var(--primary);
+        }
+
+        .onboarding-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            gap: 12px;
+        }
+
+        .onboarding-nav-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #fff;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .onboarding-nav-btn.primary {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+
+        .onboarding-nav-btn:disabled {
+            opacity: 0.3;
+        }
+
+        .onboarding-dots {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .onboarding-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .onboarding-dot.active {
+            background: var(--primary);
+        }
     </style>
 </head>
 
 <body>
+    <!-- Install Prompt (PWA) -->
+    <div class="install-prompt" id="install-prompt">
+        <div class="install-prompt-content">
+            <div class="install-prompt-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+            </div>
+            <div class="install-prompt-text">
+                <h4>Install Nautic Remote</h4>
+                <p>Add to home screen for fullscreen experience</p>
+            </div>
+            <button class="install-prompt-close" onclick="dismissInstallPrompt()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <button class="install-prompt-btn" id="install-btn" onclick="installApp()">
+            Install App
+        </button>
+    </div>
+
+    <!-- iOS Onboarding Modal -->
+    <div class="onboarding-modal" id="ios-onboarding">
+        <div class="onboarding-header">
+            <span class="onboarding-step-info" id="onboarding-step-info">Step 1 of 6</span>
+            <span class="onboarding-title">Install Guide</span>
+            <button class="onboarding-close" onclick="closeOnboarding()">Done</button>
+        </div>
+
+        <div class="onboarding-carousel">
+            <div class="onboarding-slide active" data-step="1">
+                <img src="/1.jpg" alt="Step 1">
+                <div class="onboarding-slide-text">
+                    Tap the <strong>three dots (⋯)</strong> in the address bar
+                </div>
+            </div>
+            <div class="onboarding-slide" data-step="2">
+                <img src="/2.jpg" alt="Step 2">
+                <div class="onboarding-slide-text">
+                    Tap <strong>"Compartir"</strong> (Share)
+                </div>
+            </div>
+            <div class="onboarding-slide" data-step="3">
+                <img src="/3.jpg" alt="Step 3">
+                <div class="onboarding-slide-text">
+                    Tap <strong>"Más"</strong> (More) to see all options
+                </div>
+            </div>
+            <div class="onboarding-slide" data-step="4">
+                <img src="/4.jpg" alt="Step 4">
+                <div class="onboarding-slide-text">
+                    Scroll down and tap <strong>"Agregar a Inicio"</strong><br>(Add to Home Screen)
+                </div>
+            </div>
+            <div class="onboarding-slide" data-step="5">
+                <img src="/5.jpg" alt="Step 5">
+                <div class="onboarding-slide-text">
+                    Tap <strong>"Agregar"</strong> (Add) to install
+                </div>
+            </div>
+            <div class="onboarding-slide" data-step="6">
+                <img src="/6.jpg" alt="Step 6">
+                <div class="onboarding-slide-text">
+                    🎉 <strong>Done!</strong> Open the app from your home screen<br>for a fullscreen experience
+                </div>
+            </div>
+        </div>
+
+        <div class="onboarding-nav">
+            <button class="onboarding-nav-btn" id="onboarding-prev" onclick="prevOnboardingStep()"
+                disabled>Previous</button>
+            <div class="onboarding-dots" id="onboarding-dots">
+                <div class="onboarding-dot active"></div>
+                <div class="onboarding-dot"></div>
+                <div class="onboarding-dot"></div>
+                <div class="onboarding-dot"></div>
+                <div class="onboarding-dot"></div>
+                <div class="onboarding-dot"></div>
+            </div>
+            <button class="onboarding-nav-btn primary" id="onboarding-next" onclick="nextOnboardingStep()">Next</button>
+        </div>
+    </div>
+
     <!-- Reconnection Banner -->
     <div class="reconnect-banner" id="reconnect-banner">
         Reconnecting...
@@ -554,19 +988,40 @@
 
     <!-- Header -->
     <div class="header">
-        <div class="logo">NAUTIC REMOTE</div>
-        <button class="menu-btn" onclick="toggleDrawer()">
+        <!-- Watch on Phone (Left) -->
+        <button class="menu-btn" onclick="openWatchMode(); vibrate('medium');" title="Watch on Phone">
             <svg class="icon-stroke" viewBox="0 0 24 24">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
             </svg>
         </button>
+        <div class="logo">NAUTIC REMOTE</div>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <!-- PC Fullscreen Toggle (Quick Access) -->
+            <button class="menu-btn" onclick="send('toggle-fullscreen'); vibrate('medium');"
+                title="Toggle PC Fullscreen">
+                <svg class="icon-stroke" viewBox="0 0 24 24">
+                    <path
+                        d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
+                    </path>
+                </svg>
+            </button>
+            <!-- Menu Button -->
+            <button class="menu-btn" onclick="toggleDrawer()">
+                <svg class="icon-stroke" viewBox="0 0 24 24">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
     </div>
 
     <!-- Main Content -->
     <div class="main-info">
         <div class="file-title" id="title">Connecting...</div>
+        <img src="/icon.ico" alt="Nautic" style="width:80px; height:80px; margin:16px 0;">
         <div class="time-badge" id="time">--:--</div>
     </div>
 
@@ -701,6 +1156,15 @@
         <!-- Sync Section -->
         <div class="drawer-section">
             <div class="drawer-section-title">Connection</div>
+            <button class="drawer-btn" id="btn-watch" onclick="openWatchMode()">
+                <svg class="icon-stroke" viewBox="0 0 24 24">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                Watch on Phone
+                <span class="stream-badge" id="stream-badge" style="display:none">LIVE</span>
+            </button>
             <button class="drawer-btn" onclick="requestSync()">
                 <svg class="icon-stroke" viewBox="0 0 24 24">
                     <polyline points="23 4 23 10 17 10"></polyline>
@@ -720,6 +1184,29 @@
             <button class="modal-close" onclick="closeModal()">Done</button>
         </div>
         <div class="track-list" id="track-container"></div>
+    </div>
+
+    <!-- Watch Mode Overlay -->
+    <div class="watch-mode" id="watch-mode">
+        <div class="watch-header">
+            <button class="watch-back" onclick="closeWatchMode()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                Back
+            </button>
+            <div class="watch-title" id="watch-title">Loading...</div>
+            <button class="watch-fullscreen-btn" onclick="toggleWatchFullscreen()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path
+                        d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
+                    </path>
+                </svg>
+            </button>
+        </div>
+        <div class="watch-video-container" id="watch-container">
+            <video class="watch-video" id="watch-video" controls playsinline></video>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -772,6 +1259,71 @@
                 return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             }
             return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        };
+
+        // Clean up movie filename for display
+        const cleanFilename = (filename) => {
+            if (!filename || filename === 'No Media') return filename;
+
+            let name = filename;
+
+            // Remove file extension
+            name = name.replace(/\.(mp4|mkv|avi|mov|webm|wmv|flv|m4v|ts|m2ts)$/i, '');
+
+            // Remove common release tags (case insensitive)
+            const tagsToRemove = [
+                /\(@[^)]+\)/gi,           // (@Intermedia), (@YIFY), etc.
+                /\[[^\]]+\]/g,             // [720p], [1080p], [x264], etc.
+                /\(1080p\)/gi,
+                /\(720p\)/gi,
+                /\(2160p\)/gi,
+                /\(4K\)/gi,
+                /\bWEB-DL\b/gi,
+                /\bWEBRip\b/gi,
+                /\bBluRay\b/gi,
+                /\bBDRip\b/gi,
+                /\bHDRip\b/gi,
+                /\bDVDRip\b/gi,
+                /\bx264\b/gi,
+                /\bx265\b/gi,
+                /\bH\.?264\b/gi,
+                /\bH\.?265\b/gi,
+                /\bHEVC\b/gi,
+                /\bAAC\b/gi,
+                /\bAC3\b/gi,
+                /\bDTS\b/gi,
+                /\bDDP?\d*\.?\d*\b/gi,     // DDP2.0, DDP5.1, etc.
+                /\bAMZN\b/gi,
+                /\bNF\b/gi,
+                /\bHBO\b/gi,
+                /- [A-Z]+$/i,              // - SPARKS, - YIFY, etc.
+            ];
+
+            tagsToRemove.forEach(regex => {
+                name = name.replace(regex, '');
+            });
+
+            // Replace dots and underscores with spaces
+            name = name.replace(/[._]/g, ' ');
+
+            // Extract year if present (keep it nice)
+            const yearMatch = name.match(/\b(19\d{2}|20\d{2})\b/);
+            let year = '';
+            if (yearMatch) {
+                year = yearMatch[1];
+                // Remove year from title temporarily
+                name = name.replace(yearMatch[0], '');
+            }
+
+            // Clean up multiple spaces and trim
+            name = name.replace(/\s+/g, ' ').trim();
+
+            // Add year back in parentheses if found
+            if (year && !name.includes(year)) {
+                name = `${name} (${year})`;
+            }
+
+            return name || filename;
         };
 
         const vibrate = (intensity = 'light') => {
@@ -869,6 +1421,13 @@
             socket.on('status', (data) => {
                 console.log('[Remote] Status:', data);
             });
+
+            // Stream availability for Watch on Phone
+            socket.on('stream-available', (data) => {
+                console.log('[Remote] Stream available:', data);
+                streamAvailable = data.available;
+                updateStreamBadge(data.available);
+            });
         }
 
         function updateConnectionUI(status) {
@@ -950,7 +1509,7 @@
         }
 
         function updateTitleUI() {
-            elTitle.textContent = playerState.filename || 'No Media';
+            elTitle.textContent = cleanFilename(playerState.filename) || 'No Media';
         }
 
         function updateTracksUI() {
@@ -1032,6 +1591,130 @@
         }
 
         // ============================================
+        // WATCH MODE (Stream video to phone)
+        // ============================================
+        let streamAvailable = false;
+
+        async function openWatchMode() {
+            vibrate('medium');
+
+            const watchMode = document.getElementById('watch-mode');
+            const watchContainer = document.getElementById('watch-container');
+            const watchVideo = document.getElementById('watch-video');
+            const watchTitle = document.getElementById('watch-title');
+
+            // Show watch mode
+            watchMode.classList.add('show');
+            watchTitle.textContent = 'Loading...';
+
+            try {
+                // Check if streaming is available
+                const response = await fetch('/stream-info');
+                const info = await response.json();
+
+                if (!info.available) {
+                    watchContainer.innerHTML = `
+                        <div class="watch-error">
+                            <h3>Cannot Stream</h3>
+                            <p>${info.error || 'This format is not supported for browser playback.'}</p>
+                            <p style="font-size:12px; margin-top:16px; opacity:0.6">
+                                Supported formats: MP4, WebM, OGG
+                            </p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Set video source and title
+                watchTitle.textContent = info.filename;
+                watchContainer.innerHTML = `<video class="watch-video" id="watch-video" controls playsinline autoplay></video>`;
+
+                const video = document.getElementById('watch-video');
+                video.src = '/stream';
+
+                // Seek to current position
+                video.addEventListener('loadedmetadata', () => {
+                    if (info.currentTime > 0) {
+                        video.currentTime = info.currentTime;
+                    }
+                    if (!info.paused) {
+                        video.play().catch(() => { });
+                    }
+                });
+
+                // Error handling
+                video.addEventListener('error', (e) => {
+                    console.error('Video error:', e);
+                    watchContainer.innerHTML = `
+                        <div class="watch-error">
+                            <h3>Playback Error</h3>
+                            <p>Could not play this video on your device.</p>
+                        </div>
+                    `;
+                });
+
+            } catch (err) {
+                console.error('Stream error:', err);
+                watchContainer.innerHTML = `
+                    <div class="watch-error">
+                        <h3>Connection Error</h3>
+                        <p>Could not connect to the stream server.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function closeWatchMode() {
+            vibrate();
+            const watchMode = document.getElementById('watch-mode');
+            const watchVideo = document.getElementById('watch-video');
+
+            // Pause and unload video
+            if (watchVideo) {
+                watchVideo.pause();
+                watchVideo.src = '';
+            }
+
+            // Reset container
+            document.getElementById('watch-container').innerHTML =
+                '<video class="watch-video" id="watch-video" controls playsinline></video>';
+
+            watchMode.classList.remove('show');
+        }
+
+        // Listen for stream availability updates
+        function updateStreamBadge(available) {
+            const badge = document.getElementById('stream-badge');
+            if (badge) {
+                badge.style.display = available ? 'inline' : 'none';
+            }
+        }
+
+        // Toggle fullscreen for the video player
+        function toggleWatchFullscreen() {
+            vibrate('medium');
+            const video = document.getElementById('watch-video');
+            const container = document.getElementById('watch-container');
+
+            if (!video) return;
+
+            // Try video element fullscreen first (better for mobile)
+            if (video.requestFullscreen) {
+                video.requestFullscreen();
+            } else if (video.webkitRequestFullscreen) {
+                video.webkitRequestFullscreen();
+            } else if (video.webkitEnterFullscreen) {
+                // iOS Safari specific
+                video.webkitEnterFullscreen();
+            } else if (container.requestFullscreen) {
+                // Fallback to container
+                container.requestFullscreen();
+            } else if (container.webkitRequestFullscreen) {
+                container.webkitRequestFullscreen();
+            }
+        }
+
+        // ============================================
         // EVENT LISTENERS
         // ============================================
 
@@ -1100,6 +1783,132 @@
         // ============================================
         connect();
         startTimeInterpolation();
+
+        // ============================================
+        // PWA INSTALL PROMPT
+        // ============================================
+        let deferredPrompt = null;
+        const installPrompt = document.getElementById('install-prompt');
+        const installBtn = document.getElementById('install-btn');
+
+        // Check if already installed or dismissed
+        function isStandalone() {
+            return window.matchMedia('(display-mode: standalone)').matches
+                || window.navigator.standalone === true;
+        }
+
+        function showInstallPrompt() {
+            // Don't show if already standalone, already dismissed, or on desktop
+            if (isStandalone()) return;
+            if (localStorage.getItem('installDismissed')) return;
+            if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return;
+
+            installPrompt.classList.add('show');
+
+            // Update button text for iOS
+            if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && !deferredPrompt) {
+                installBtn.textContent = 'How to Install';
+            }
+        }
+
+        function dismissInstallPrompt() {
+            vibrate();
+            installPrompt.classList.remove('show');
+            localStorage.setItem('installDismissed', 'true');
+        }
+
+        function installApp() {
+            vibrate('medium');
+
+            if (deferredPrompt) {
+                // Android Chrome - native install prompt
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        installPrompt.classList.remove('show');
+                    }
+                    deferredPrompt = null;
+                });
+            } else if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                // iOS - show onboarding (will be replaced with visual guide)
+                showIOSInstallGuide();
+            } else {
+                // Other browsers
+                alert('To install:\n\n1. Open browser menu\n2. Select "Add to Home Screen" or "Install App"');
+            }
+        }
+
+        // iOS Install Guide - Show visual onboarding
+        let currentOnboardingStep = 1;
+        const totalOnboardingSteps = 6;
+
+        function showIOSInstallGuide() {
+            currentOnboardingStep = 1;
+            updateOnboardingUI();
+            document.getElementById('ios-onboarding').classList.add('show');
+            installPrompt.classList.remove('show');
+        }
+
+        function closeOnboarding() {
+            vibrate();
+            document.getElementById('ios-onboarding').classList.remove('show');
+        }
+
+        function nextOnboardingStep() {
+            vibrate();
+            if (currentOnboardingStep < totalOnboardingSteps) {
+                currentOnboardingStep++;
+                updateOnboardingUI();
+            }
+        }
+
+        function prevOnboardingStep() {
+            vibrate();
+            if (currentOnboardingStep > 1) {
+                currentOnboardingStep--;
+                updateOnboardingUI();
+            }
+        }
+
+        function updateOnboardingUI() {
+            // Update step info
+            document.getElementById('onboarding-step-info').textContent = `Step ${currentOnboardingStep} of ${totalOnboardingSteps}`;
+
+            // Update slides
+            document.querySelectorAll('.onboarding-slide').forEach((slide, idx) => {
+                slide.classList.toggle('active', idx + 1 === currentOnboardingStep);
+            });
+
+            // Update dots
+            document.querySelectorAll('.onboarding-dot').forEach((dot, idx) => {
+                dot.classList.toggle('active', idx + 1 === currentOnboardingStep);
+            });
+
+            // Update buttons
+            document.getElementById('onboarding-prev').disabled = currentOnboardingStep === 1;
+            const nextBtn = document.getElementById('onboarding-next');
+            if (currentOnboardingStep === totalOnboardingSteps) {
+                nextBtn.textContent = 'Done';
+                nextBtn.onclick = closeOnboarding;
+            } else {
+                nextBtn.textContent = 'Next';
+                nextBtn.onclick = nextOnboardingStep;
+            }
+        }
+
+        // Capture the install prompt (Chrome/Edge on Android)
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            showInstallPrompt();
+        });
+
+        // Show prompt after short delay if not captured
+        setTimeout(() => {
+            if (!deferredPrompt && !isStandalone()) {
+                showInstallPrompt();
+            }
+        }, 3000);
     </script>
 </body>
 
