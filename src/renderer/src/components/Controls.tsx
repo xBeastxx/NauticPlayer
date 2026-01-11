@@ -61,6 +61,7 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
     const [isMuted, setIsMuted] = useState(false)
     const [volume, setVolume] = useState(60)
     const [prevVolume, setPrevVolume] = useState(60)
+    const volumeShowTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     // URL Input State (Lifted to App)
     const [streamUrl, setStreamUrl] = useState('')
     // const [isLoadingUrl, setIsLoadingUrl] = useState(false) <-- Lifted to App
@@ -151,6 +152,10 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
 
         const onMpvVolume = (_event: any, vol: number) => {
             setVolume(vol)
+            // Briefly show volume bar when volume changes
+            setShowVolume(true)
+            if (volumeShowTimeoutRef.current) clearTimeout(volumeShowTimeoutRef.current)
+            volumeShowTimeoutRef.current = setTimeout(() => setShowVolume(false), 1500)
         }
 
         const onMpvTracks = (_event: any, trackList: any[]) => {
@@ -170,6 +175,12 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
         ipcRenderer.on('mpv-tracks', onMpvTracks)
         ipcRenderer.on('mpv-error', onMpvError)
 
+        // Listen for mute state changes
+        const onMpvMute = (_event: any, muted: boolean) => {
+            setIsMuted(muted)
+        }
+        ipcRenderer.on('mpv-mute', onMpvMute)
+
         return () => {
             ipcRenderer.removeListener('mpv-ready', onMpvReady)
             ipcRenderer.removeListener('mpv-time', onMpvTime)
@@ -178,6 +189,7 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
             ipcRenderer.removeListener('mpv-volume', onMpvVolume)
             ipcRenderer.removeListener('mpv-tracks', onMpvTracks)
             ipcRenderer.removeListener('mpv-error', onMpvError)
+            ipcRenderer.removeListener('mpv-mute', onMpvMute)
         }
     }, [isDraggingTime])
 
@@ -554,7 +566,7 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                                     }}
                                 >
                                     <div style={{
-                                        width: `${Math.min(100, volume)}%`,
+                                        width: `${isMuted ? 0 : Math.min(100, volume)}%`,
                                         height: '100%',
                                         background: '#fff',
                                         borderRadius: '2px',
@@ -567,7 +579,7 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                                         background: '#fff',
                                         borderRadius: '50%',
                                         position: 'absolute',
-                                        left: `${Math.min(100, volume)}%`,
+                                        left: `${isMuted ? 0 : Math.min(100, volume)}%`,
                                         top: '50%',
                                         transform: 'translate(-50%, -50%)',
                                         boxShadow: '0 0 12px #fff',
@@ -583,7 +595,7 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                                     minWidth: '32px',
                                     textAlign: 'right'
                                 }}>
-                                    {Math.round(volume)}%
+                                    {isMuted ? '0' : Math.round(volume)}%
                                 </span>
                             </div>
                         </div>

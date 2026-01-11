@@ -151,10 +151,14 @@ function App(): JSX.Element {
         }
     }, [isHoveringControls])
 
-    // Listen for sub-delay changes from MPV
+    // Listen for sub-delay changes from MPV and show toast
     useEffect(() => {
         const handleSubDelay = (_: any, delay: number) => {
             setSubDelay(delay)
+            // Show toast with actual value from MPV
+            setToastMsg(`Subtitles ${delay >= 0 ? '+' : ''}${delay.toFixed(1)}s`)
+            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+            toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 2000)
         }
         ipcRenderer.on('mpv-sub-delay', handleSubDelay)
         return () => {
@@ -201,22 +205,42 @@ function App(): JSX.Element {
             } else if (e.key === 'ArrowDown') {
                 // Down = Volume -5%
                 ipcRenderer.send('mpv-command', ['add', 'volume', -5])
+            } else if (e.key === 'f' || e.key === 'F') {
+                // F = Toggle Fullscreen
+                ipcRenderer.send('toggle-fullscreen')
+            } else if (e.key === 'm' || e.key === 'M') {
+                // M = Mute/Unmute
+                ipcRenderer.send('mpv-command', ['cycle', 'mute'])
+            } else if (e.key === 's' || e.key === 'S') {
+                // S = Take Screenshot
+                ipcRenderer.send('mpv-command', ['screenshot'])
+                setToastMsg('Screenshot saved')
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 2000)
+            } else if (e.key === 'l' || e.key === 'L') {
+                // L = Toggle Loop
+                ipcRenderer.send('mpv-command', ['cycle', 'loop-file'])
+                setToastMsg('Loop toggled')
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 2000)
+            } else if (e.key === 'a' || e.key === 'A') {
+                // A = Next Audio Track
+                ipcRenderer.send('mpv-command', ['cycle', 'audio'])
+                setToastMsg('Next audio track')
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 2000)
+            } else if (e.key === 'v' || e.key === 'V') {
+                // V = Next Subtitle Track
+                ipcRenderer.send('mpv-command', ['cycle', 'sub'])
+                setToastMsg('Next subtitle')
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 2000)
             } else if (e.key === 'g' || e.key === 'G') {
-                // G = Advance subtitles (increase delay)
-                const newDelay = subDelay + 0.1
-                setSubDelay(newDelay)
+                // G = Advance subtitles (increase delay) - Let MPV update state via event
                 ipcRenderer.send('mpv-adjust-sub-delay', 0.1)
-                setToastMsg(`Subtitles ${newDelay >= 0 ? '+' : ''}${newDelay.toFixed(1)}s`)
-                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
-                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 3500)
             } else if (e.key === 'h' || e.key === 'H') {
-                // H = Delay subtitles (decrease delay)
-                const newDelay = subDelay - 0.1
-                setSubDelay(newDelay)
+                // H = Delay subtitles (decrease delay) - Let MPV update state via event
                 ipcRenderer.send('mpv-adjust-sub-delay', -0.1)
-                setToastMsg(`Subtitles ${newDelay >= 0 ? '+' : ''}${newDelay.toFixed(1)}s`)
-                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
-                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 3500)
             }
         }
 
@@ -267,6 +291,7 @@ function App(): JSX.Element {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
+            onDoubleClick={() => ipcRenderer.send('toggle-fullscreen')}
             style={{
                 width: '100vw',
                 height: '100vh',

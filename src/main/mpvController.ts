@@ -128,6 +128,7 @@ function connectToMpvSocket(uiSender: Electron.WebContents, hostWindow: BrowserW
     sendCommand({ command: ['observe_property', 10, 'filename'] })
     sendCommand({ command: ['observe_property', 11, 'aid'] })
     sendCommand({ command: ['observe_property', 12, 'sid'] })
+    sendCommand({ command: ['observe_property', 13, 'mute'] })
 
     if (commandQueue.length > 0) {
         commandQueue.forEach(cmd => sendCommand(cmd))
@@ -188,6 +189,9 @@ function handleMpvMessage(msg: any, uiSender: Electron.WebContents, hostWindow: 
         break
       case 'sub-delay':
         uiSender.send('mpv-sub-delay', msg.data)
+        break
+      case 'mute':
+        uiSender.send('mpv-mute', msg.data)
         break
       case 'track-list':
         if (Array.isArray(msg.data)) handleTrackListChange(msg.data, uiSender)
