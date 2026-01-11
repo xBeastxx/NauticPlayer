@@ -92,6 +92,13 @@ Whether you're watching local files or streaming content from the web, NauticPla
 - Silent background updates with user notification
 - Always stay up-to-date with the latest features
 
+###  **Nautic Remote & Mobile Experience**
+- **Watch on Phone**: Stream any video from your PC to your mobile device instantly
+- **Real-Time Transcoding**: Automatic HLS transcoding for MKV, AVI, and other formats incompatible with mobile browsers
+- **Progressive Web App (PWA)**: Install Nautic Remote as a native app on Android and iOS
+- **Full Remote Control**: Control playback, volume, seeking, and tracks with zero latency via WebSockets
+- **Smart Sync**: Real-time state synchronization between desktop and mobile
+
 ---
 
 ##  Screenshots
@@ -152,7 +159,9 @@ NauticPlayer is built with cutting-edge technologies:
 | **Vite (electron-vite)** | Lightning-fast build tool |
 | **MPV** | High-performance media engine |
 | **yt-dlp** | Online streaming support |
-| **FFmpeg** | Media encoding/decoding |
+| **FFmpeg** | Media encoding/decoding & HLS Transcoding |
+| **Socket.io** | Real-time bi-directional communication |
+| **HLS.js** | Robust mobile video streaming |
 | **Lucide React** | Beautiful icon library |
 
 ---

@@ -10,8 +10,9 @@ import os from 'os'
 import dgram from 'dgram'
 import { join, extname } from 'path'
 import { is } from '@electron-toolkit/utils'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, app as electronApp } from 'electron'
 import * as fs from 'fs'
+import { spawn, ChildProcess } from 'child_process'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -75,8 +76,14 @@ let currentFilePath: string | null = null
 let heartbeatInterval: NodeJS.Timeout | null = null
 const HEARTBEAT_MS = 3000 // Send state every 3 seconds
 
-// Supported video formats for browser playback
+// Supported video formats for browser playback (no transcoding needed)
 const BROWSER_PLAYABLE = ['.mp4', '.webm', '.ogg', '.mov']
+
+// All video formats we can transcode
+const ALL_VIDEO_FORMATS = ['.mp4', '.mkv', '.avi', '.wmv', '.flv', '.webm', '.mov', '.m4v', '.ts', '.m2ts', '.mpg', '.mpeg', '.3gp']
+
+// FFmpeg transcoding process
+let transcodeProcess: ChildProcess | null = null
 
 // ============================================================================
 // STATE API (Used by mpvController)
@@ -126,12 +133,22 @@ export function setCurrentFile(filePath: string | null): void {
   currentFilePath = filePath
   console.log('[Remote] Current file set to:', filePath)
   
+  // Kill any existing transcode process
+  if (transcodeProcess) {
+    transcodeProcess.kill()
+    transcodeProcess = null
+  }
+  
   // Notify clients that streaming is available
   if (io && filePath) {
     const ext = extname(filePath).toLowerCase()
-    const canStream = BROWSER_PLAYABLE.includes(ext)
+    const isNativePlayable = BROWSER_PLAYABLE.includes(ext)
+    const canTranscode = ALL_VIDEO_FORMATS.includes(ext)
+    
     io.emit('stream-available', { 
-      available: canStream, 
+      available: isNativePlayable || canTranscode,
+      native: isNativePlayable,
+      needsTranscode: !isNativePlayable && canTranscode,
       filename: playerState.filename,
       format: ext.replace('.', '').toUpperCase()
     })
@@ -296,11 +313,14 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
     }
     
     const ext = extname(currentFilePath).toLowerCase()
-    const canStream = BROWSER_PLAYABLE.includes(ext)
+    const isNativePlayable = BROWSER_PLAYABLE.includes(ext)
+    const canTranscode = ALL_VIDEO_FORMATS.includes(ext)
     const stat = fs.statSync(currentFilePath)
     
     res.json({
-      available: canStream,
+      available: isNativePlayable || canTranscode,
+      native: isNativePlayable,
+      needsTranscode: !isNativePlayable && canTranscode,
       filename: playerState.filename,
       format: ext.replace('.', '').toUpperCase(),
       size: stat.size,
@@ -364,6 +384,128 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
       fs.createReadStream(currentFilePath).pipe(res)
     }
   })
+  
+  // Stream video with FFmpeg transcoding for non-native formats
+  app.get('/stream-transcode', (req, res) => {
+    if (!currentFilePath || !fs.existsSync(currentFilePath)) {
+      return res.status(404).send('No file loaded')
+    }
+    
+    // Clean up any existing transcode process
+    if (transcodeProcess) {
+      transcodeProcess.kill()
+      transcodeProcess = null
+    }
+
+    // Ensure HLS directory exists and is empty
+    const hlsDir = join(electronApp.getPath('userData'), 'hls-stream')
+    if (fs.existsSync(hlsDir)) {
+      try {
+        fs.readdirSync(hlsDir).forEach(f => fs.unlinkSync(join(hlsDir, f)))
+      } catch (e) {
+        console.error('[Remote] Failed to clean HLS dir:', e)
+      }
+    } else {
+      fs.mkdirSync(hlsDir, { recursive: true })
+    }
+
+    // Get FFmpeg path
+    const ffmpegPath = is.dev 
+      ? join(__dirname, '../../resources/bin/ffmpeg.exe')
+      : join(process.resourcesPath, 'bin/ffmpeg.exe')
+    
+    if (!fs.existsSync(ffmpegPath)) {
+      console.error('[Remote] FFmpeg not found at:', ffmpegPath)
+      return res.status(500).send('FFmpeg not available')
+    }
+
+    // Get start time from query param (for seeking)
+    const startTime = parseFloat(req.query.t as string) || 0
+    
+    console.log('[Remote] Starting HLS transcode from', startTime, 'seconds')
+    console.log('[Remote] Output dir:', hlsDir)
+    
+    const playlistPath = join(hlsDir, 'playlist.m3u8')
+    const maxBitrate = 2000000 // 2Mbps cap for mobile
+    
+    // FFmpeg args for HLS streaming (Standard mobile streaming)
+    const ffmpegArgs = [
+      '-ss', startTime.toString(),       // Seek start
+      '-i', currentFilePath,             // Input
+      
+      // Video settings
+      '-c:v', 'libx264',                 // H.264
+      '-preset', 'veryfast',             // Balance speed/quality
+      '-tune', 'zerolatency',            // Low latency
+      '-profile:v', 'baseline',          // Max compatibility
+      '-level', '3.0',
+      '-pix_fmt', 'yuv420p',
+      '-vf', 'scale=-2:480',             // 480p
+      '-b:v', '1500k',
+      '-maxrate', '2000k',
+      '-bufsize', '4000k',
+      '-g', '30',                        // Keyframe every 1s
+      '-keyint_min', '30',
+      '-sc_threshold', '0',
+      
+      // Audio settings
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-ac', '2',
+      '-ar', '44100',
+      
+      // HLS settings
+      '-f', 'hls',
+      '-hls_time', '4',                  // 4 second segments
+      '-hls_list_size', '5',             // Keep 5 segments in playlist
+      '-hls_flags', 'delete_segments+split_by_time',
+      '-hls_segment_filename', join(hlsDir, 'segment_%03d.ts'),
+      playlistPath
+    ]
+    
+    console.log('[Remote] FFmpeg args:', ffmpegArgs.join(' '))
+    
+    transcodeProcess = spawn(ffmpegPath, ffmpegArgs)
+    
+    transcodeProcess.stderr?.on('data', (data) => {
+      const msg = data.toString()
+      // console.log('[FFmpeg]', msg) // Optional: too verbose
+    })
+    
+    transcodeProcess.on('close', (code) => {
+      console.log('[Remote] FFmpeg process closed with code:', code)
+      transcodeProcess = null
+    })
+
+    // Wait for playlist to be created before responding
+    let checks = 0
+    const checkPlaylist = setInterval(() => {
+      if (fs.existsSync(playlistPath)) {
+        clearInterval(checkPlaylist)
+        res.json({ 
+          url: '/hls/playlist.m3u8',
+          ready: true 
+        })
+      } else {
+        checks++
+        if (checks > 20) { // Timeout after 10s
+          clearInterval(checkPlaylist)
+          if (transcodeProcess) transcodeProcess.kill()
+          res.status(500).json({ error: 'Transcoding timeout' })
+        }
+      }
+    }, 500)
+    
+    // Clean up on client disconnect is tricky with HLS because client polling
+    // We rely on "new file loaded" or "stop" command to kill process
+  })
+
+  // Serve HLS files
+  app.use('/hls', (req, res, next) => {
+    const hlsDir = join(electronApp.getPath('userData'), 'hls-stream')
+    // Check if cleaning up? No, express static handles serving
+    next()
+  }, express.static(join(electronApp.getPath('userData'), 'hls-stream')))
 
   // Socket.io connection handler
   io.on('connection', (socket) => {

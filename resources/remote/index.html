@@ -16,6 +16,9 @@
     <meta name="msapplication-navbutton-color" content="#050505">
     <meta name="apple-touch-fullscreen" content="yes">
 
+    <!-- HLS.js for transcoding support -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+
     <!-- Manifest for Android PWA -->
     <link rel="manifest" href="/manifest.json">
 
@@ -1603,22 +1606,30 @@
             const watchVideo = document.getElementById('watch-video');
             const watchTitle = document.getElementById('watch-title');
 
-            // Show watch mode
+            // Show watch mode with loading spinner
             watchMode.classList.add('show');
             watchTitle.textContent = 'Loading...';
+            watchContainer.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%;">
+                    <div class="spinner"></div>
+                    <p style="margin-top:16px; color:rgba(255,255,255,0.6);">Connecting to stream...</p>
+                </div>
+            `;
 
             try {
                 // Check if streaming is available
                 const response = await fetch('/stream-info');
                 const info = await response.json();
 
+                console.log('[Watch] Stream info:', info);
+
                 if (!info.available) {
                     watchContainer.innerHTML = `
                         <div class="watch-error">
                             <h3>Cannot Stream</h3>
-                            <p>${info.error || 'This format is not supported for browser playback.'}</p>
+                            <p>${info.error || 'This format is not supported.'}</p>
                             <p style="font-size:12px; margin-top:16px; opacity:0.6">
-                                Supported formats: MP4, WebM, OGG
+                                Format: ${info.format || 'Unknown'}
                             </p>
                         </div>
                     `;
@@ -1627,28 +1638,103 @@
 
                 // Set video source and title
                 watchTitle.textContent = info.filename;
+
+                // Add transcoding indicator if needed
+                const isTranscoding = info.needsTranscode;
+                if (isTranscoding) {
+                    watchTitle.textContent = info.filename + ' (Transcoding...)';
+                }
+
                 watchContainer.innerHTML = `<video class="watch-video" id="watch-video" controls playsinline autoplay></video>`;
 
                 const video = document.getElementById('watch-video');
-                video.src = '/stream';
 
-                // Seek to current position
-                video.addEventListener('loadedmetadata', () => {
-                    if (info.currentTime > 0) {
-                        video.currentTime = info.currentTime;
-                    }
-                    if (!info.paused) {
-                        video.play().catch(() => { });
-                    }
-                });
+                // Use appropriate endpoint based on format
+                // Use appropriate endpoint based on format
+                if (isTranscoding) {
+                    const startTime = Math.floor(info.currentTime || 0);
 
-                // Error handling
+                    // Fetch HLS playlist URL
+                    fetch(`/stream-transcode?t=${startTime}`)
+                        .then(res => {
+                            if (!res.ok) throw new Error('Transcoding failed');
+                            return res.json();
+                        })
+                        .then(data => {
+                            // Use HLS.js if supported (Chrome, Firefox, Android)
+                            if (Hls.isSupported()) {
+                                console.log('[Watch] using HLS.js');
+                                const hls = new Hls({
+                                    debug: false,
+                                    enableWorker: true
+                                });
+                                hls.loadSource(data.url);
+                                hls.attachMedia(video);
+                                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                                    video.play().catch(e => console.warn('Auto-play blocked:', e));
+                                    watchTitle.textContent = info.filename;
+                                });
+                                // Keep reference to destroy later
+                                video.hls = hls;
+                            }
+                            // Use native HLS (Safari iOS/Mac)
+                            else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                                console.log('[Watch] using native HLS');
+                                video.src = data.url;
+                                video.addEventListener('loadedmetadata', () => {
+                                    video.play().catch(e => console.warn('Auto-play blocked:', e));
+                                    watchTitle.textContent = info.filename;
+                                });
+                            } else {
+                                throw new Error('HLS not supported on this browser');
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Transcoding setup error:', err);
+                            showError(`Transcoding Error: ${err.message}`);
+                        });
+                } else {
+                    // Native format - direct stream with seeking
+                    video.src = '/stream';
+
+                    // Seek to current position
+                    video.addEventListener('loadedmetadata', () => {
+                        if (info.currentTime > 0) {
+                            video.currentTime = info.currentTime;
+                        }
+                        if (!info.paused) {
+                            video.play().catch(() => { });
+                        }
+                    });
+                }
+
+                // Error handling with detailed logging
                 video.addEventListener('error', (e) => {
-                    console.error('Video error:', e);
+                    const mediaError = video.error;
+                    let errorMsg = 'Unknown error';
+                    if (mediaError) {
+                        switch (mediaError.code) {
+                            case MediaError.MEDIA_ERR_ABORTED:
+                                errorMsg = 'Playback aborted by user';
+                                break;
+                            case MediaError.MEDIA_ERR_NETWORK:
+                                errorMsg = 'Network error';
+                                break;
+                            case MediaError.MEDIA_ERR_DECODE:
+                                errorMsg = 'Decode error - format not supported';
+                                break;
+                            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                                errorMsg = 'Source not supported';
+                                break;
+                        }
+                        errorMsg += ': ' + (mediaError.message || 'No details');
+                    }
+                    console.error('Video error:', errorMsg, mediaError);
                     watchContainer.innerHTML = `
                         <div class="watch-error">
                             <h3>Playback Error</h3>
-                            <p>Could not play this video on your device.</p>
+                            <p>${errorMsg}</p>
+                            <p style="font-size:11px; margin-top:12px; opacity:0.5;">Check console for details</p>
                         </div>
                     `;
                 });
@@ -1672,7 +1758,13 @@
             // Pause and unload video
             if (watchVideo) {
                 watchVideo.pause();
-                watchVideo.src = '';
+                watchVideo.removeAttribute('src'); // Unload
+
+                // Destroy HLS instance if exists
+                if (watchVideo.hls) {
+                    watchVideo.hls.destroy();
+                    delete watchVideo.hls;
+                }
             }
 
             // Reset container
