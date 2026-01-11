@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/NauticPlayerIcon.ico?asset'
 import { setupMpvController, setupIpcHandlers, updateYtdl, sendCommand } from './mpvController'
+import { startRemoteServer, resolveBestIps } from './remoteServer'
 import { setupSubtitleController } from './subtitleController'
 import { logger } from './lib/logger'
 
@@ -89,6 +90,10 @@ function createWindow(): void {
 
     setupSubtitleController(mainWindow)
     setupIpcHandlers(mainWindow.webContents, mainWindow) // (Sender, Host) - Corrected Order
+    
+    // Start Remote Server
+    logger.log('[MAIN] Starting Remote Server...')
+    startRemoteServer(mainWindow.webContents, mainWindow)
 
     // Reset loop state to none on startup
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -139,6 +144,15 @@ ipcMain.on('minimize-window', () => {
 
 ipcMain.on('close-window', () => {
   mainWindow?.close()
+})
+
+ipcMain.handle('get-remote-info', async () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        const { port } = startRemoteServer(mainWindow.webContents, mainWindow)
+        const ips = await resolveBestIps()
+        return { port, ips, url: `http://${ips[0]}:${port}` }
+    }
+    return null
 })
 
 ipcMain.on('toggle-fullscreen', () => {

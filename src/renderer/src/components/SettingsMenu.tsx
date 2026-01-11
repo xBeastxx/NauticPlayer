@@ -92,6 +92,8 @@ export default function SettingsMenu({
         return saved || 'none'
     })
 
+
+
     // Playback States
     const [speed, setSpeed] = useState(1.0)
     // Loop State (Lifted)
@@ -187,6 +189,8 @@ export default function SettingsMenu({
         setAnime4K(newVal)
         ipcRenderer.send('mpv-toggle-shader', newVal)
     }
+
+
 
     const setAudioTrack = (id: number) => {
         ipcRenderer.send('mpv-set-audio', id)
@@ -411,6 +415,8 @@ export default function SettingsMenu({
                                 <SettingItem label="Hardware Acceleration" description="Use GPU for smoother 4K/HDR playback." centered>
                                     <Toggle checked={hwDec} onChange={toggleHwDec} />
                                 </SettingItem>
+
+
 
                                 <div style={{ marginBottom: '20px' }}>
                                     <label style={labelStyle}>Video Enhancement</label>

@@ -10,6 +10,7 @@ import { is } from '@electron-toolkit/utils'
 import * as net from 'net'
 import { getIsFullScreen } from './index'
 import { isYouTubeUrl, extractYouTubeMetadata, isYouTubePlaylist, extractYouTubePlaylist } from './lib/historyService'
+import { updatePlayerState, getPlayerState, broadcastFullState } from './remoteServer'
 
 let mpvProcess: ChildProcess | null = null
 let ipcSocket: net.Socket | null = null
@@ -170,16 +171,24 @@ function handleMpvMessage(msg: any, uiSender: Electron.WebContents, hostWindow: 
   if (msg.event === 'property-change') {
     switch (msg.name) {
       case 'time-pos':
-        if (typeof msg.data === 'number') uiSender.send('mpv-time', msg.data)
+        if (typeof msg.data === 'number') {
+            uiSender.send('mpv-time', msg.data)
+            updatePlayerState({ time: msg.data })
+        }
         break
       case 'duration':
-        if (typeof msg.data === 'number') uiSender.send('mpv-duration', msg.data)
+        if (typeof msg.data === 'number') {
+            uiSender.send('mpv-duration', msg.data)
+            updatePlayerState({ duration: msg.data })
+        }
         break
       case 'pause':
         uiSender.send('mpv-paused', msg.data)
+        updatePlayerState({ paused: msg.data })
         break
       case 'volume':
         uiSender.send('mpv-volume', msg.data)
+        updatePlayerState({ volume: msg.data })
         break
       case 'speed':
         uiSender.send('mpv-speed', msg.data)
@@ -192,9 +201,13 @@ function handleMpvMessage(msg: any, uiSender: Electron.WebContents, hostWindow: 
         break
       case 'mute':
         uiSender.send('mpv-mute', msg.data)
+        updatePlayerState({ muted: msg.data })
         break
       case 'track-list':
-        if (Array.isArray(msg.data)) handleTrackListChange(msg.data, uiSender)
+        if (Array.isArray(msg.data)) {
+            handleTrackListChange(msg.data, uiSender)
+            updatePlayerState({ tracks: msg.data })
+        }
         break
       case 'aid':
       case 'sid':
@@ -208,6 +221,7 @@ function handleMpvMessage(msg: any, uiSender: Electron.WebContents, hostWindow: 
         break
       case 'filename':
         uiSender.send('mpv-filename', msg.data)
+        updatePlayerState({ filename: msg.data })
         break
     }
   }
@@ -395,10 +409,38 @@ export function setupIpcHandlers(uiSender: Electron.WebContents, hostWindow: Bro
   })
 
   // ... Update updateYtdl call below
+  // ... Update updateYtdl call below
   ipcMain.removeAllListeners('mpv-update-ytdl')
   ipcMain.on('mpv-update-ytdl', () => {
     updateYtdl(uiSender, false)
   })
+
+// Remote command handler - moved outside setupIpcHandlers to avoid closure issues
+ipcMain.on('remote-command', (_event, action: string, value: any) => {
+      // console.log('[MPV] Remote Command:', action, value)
+      switch(action) {
+          case 'play': sendCommand({ command: ['set_property', 'pause', false] }); break;
+          case 'pause': sendCommand({ command: ['set_property', 'pause', true] }); break;
+          case 'toggle': sendCommand({ command: ['cycle', 'pause'] }); break;
+          case 'seek': sendCommand({ command: ['seek', value, 'relative'] }); break;
+          case 'seek-to': sendCommand({ command: ['seek', value, 'absolute', 'exact'] }); break;
+          case 'volume': 
+              if (value === 'up') sendCommand({ command: ['add', 'volume', 5] });
+              else if (value === 'down') sendCommand({ command: ['add', 'volume', -5] });
+              else sendCommand({ command: ['set_property', 'volume', value] }); 
+              break;
+          case 'mute': sendCommand({ command: ['cycle', 'mute'] }); break;
+          case 'toggle-fullscreen': 
+              // Use the exported function from index.ts or send IPC
+              ipcMain.emit('toggle-fullscreen', null);
+              break;
+          case 'init': 
+              // Send full state using new API
+              broadcastFullState()
+              break;
+          case 'command': sendCommand({ command: value }); break; 
+      }
+})
 
   // Shader Preset Handler
   ipcMain.removeAllListeners('mpv-set-shader-preset')

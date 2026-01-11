@@ -43,11 +43,11 @@ function formatRelativeTime(timestamp: number): string {
     const hours = Math.floor(diff / 3600000)
     const days = Math.floor(diff / 86400000)
 
-    if (minutes < 1) return 'Ahora'
-    if (minutes < 60) return `Hace ${minutes}m`
-    if (hours < 24) return `Hace ${hours}h`
-    if (days === 1) return 'Ayer'
-    if (days < 7) return `Hace ${days}d`
+    if (minutes < 1) return 'Just now'
+    if (minutes < 60) return `${minutes}m ago`
+    if (hours < 24) return `${hours}h ago`
+    if (days === 1) return 'Yesterday'
+    if (days < 7) return `${days}d ago`
 
     return new Date(timestamp).toLocaleDateString()
 }
@@ -101,7 +101,7 @@ export default function HistoryPanel({
                         color: '#fff',
                         fontFamily: 'Inter, sans-serif'
                     }}>
-                        Historial
+                        History
                     </h2>
                     {history.length > 0 && (
                         <span style={{
@@ -138,7 +138,7 @@ export default function HistoryPanel({
                             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(255,255,255,0.6)' }}
                         >
                             <Trash2 size={12} />
-                            Limpiar
+                            Clear
                         </button>
                     )}
                     <button
@@ -178,7 +178,7 @@ export default function HistoryPanel({
                     />
                     <input
                         type="text"
-                        placeholder="Buscar en historial..."
+                        placeholder="Search history..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         style={{
@@ -220,7 +220,7 @@ export default function HistoryPanel({
                         textAlign: 'center'
                     }}>
                         <Clock size={40} style={{ marginBottom: '12px', opacity: 0.5 }} />
-                        {searchQuery ? 'No se encontraron resultados' : 'Aún no hay historial'}
+                        {searchQuery ? 'No results found' : 'No history yet'}
                     </div>
                 ) : (
                     history.map((item) => (

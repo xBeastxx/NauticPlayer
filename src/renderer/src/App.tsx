@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, DragEvent } from 'react'
 import Player from './components/Player'
 import Controls from './components/Controls'
+import RemoteModal from './components/RemoteModal'
 import './assets/premium.css'
 import { Minus, X, Maximize2, Minimize2 } from 'lucide-react'
 import appIcon from './assets/NauticPlayerIcon.ico'
-// Note: assuming FondoInicio.png is in assets as verified. If not, fallback to appIcon.
 import startupImg from './assets/NauticPlayerHello-.png'
+import { useResumePositions, formatTime } from './hooks/useResumePositions'
+import { usePlaylist } from './hooks/usePlaylist'
+import { useLocalQueue } from './hooks/useLocalQueue'
 
 const { ipcRenderer } = (window as any).require('electron')
 
@@ -16,26 +19,44 @@ function App(): JSX.Element {
     const [toastMsg, setToastMsg] = useState('')
     const [filename, setFilename] = useState('')
 
+    // Smart Resume
+    const resumePositions = useResumePositions()
+    const [resumePrompt, setResumePrompt] = useState<{ key: string, position: number, title: string } | null>(null)
+    const currentFileRef = useRef<string>('')
+    const currentPositionRef = useRef<number>(0)
+    const currentDurationRef = useRef<number>(0)
+
+    const [showRemote, setShowRemote] = useState(false)
+    const [remoteConnected, setRemoteConnected] = useState(false)
+
+    // Playlist state for title display
+    const { currentIndex, isPlaylistActive, totalItems } = usePlaylist()
+    const localQueue = useLocalQueue()
+
+
+
     // Listen for maximize state changes
     useEffect(() => {
         const handleMaximize = () => setIsMaximized(true)
         const handleUnmaximize = () => setIsMaximized(false)
-
-        // Listen for playback to hide welcome screen
         const onMpvDuration = () => setHasLoadedFile(true)
+
+
 
         ipcRenderer.on('window-maximized', handleMaximize)
         ipcRenderer.on('window-unmaximized', handleUnmaximize)
         ipcRenderer.on('mpv-duration', onMpvDuration)
 
+
         return () => {
             ipcRenderer.removeListener('window-maximized', handleMaximize)
             ipcRenderer.removeListener('window-unmaximized', handleUnmaximize)
             ipcRenderer.removeListener('mpv-duration', onMpvDuration)
+
         }
     }, [])
 
-    // Toast Listener
+    // Toast Listener + Smart Resume Logic
     useEffect(() => {
         const onMpvMsg = (_: any, text: string) => {
             setToastMsg(text)
@@ -43,24 +64,98 @@ function App(): JSX.Element {
         }
         ipcRenderer.on('mpv-msg', onMpvMsg)
 
-        ipcRenderer.on('mpv-filename', (_: any, name: string) => {
-            console.log('Filename update:', name)
-            setFilename(name)
-        })
+        // Track time position for Smart Resume
+        const onMpvTime = (_: any, time: number) => {
+            currentPositionRef.current = time
+        }
+        ipcRenderer.on('mpv-time', onMpvTime)
 
-        // Listen for files opened via CLI/Open With
+        // Track duration for Smart Resume
+        const onMpvDurationForResume = (_: any, dur: number) => {
+            currentDurationRef.current = dur
+        }
+        ipcRenderer.on('mpv-duration', onMpvDurationForResume)
+
+        // When filename changes, save position of previous file and check new file
+        const onFilenameChange = (_: any, name: string) => {
+            console.log('Filename update:', name)
+
+            // Save position of previous file (if any)
+            if (currentFileRef.current && currentPositionRef.current > 0) {
+                resumePositions.savePosition(
+                    currentFileRef.current,
+                    currentFileRef.current.split(/[/\\]/).pop() || currentFileRef.current,
+                    currentPositionRef.current,
+                    currentDurationRef.current
+                )
+            }
+
+            // Update current file reference
+            currentFileRef.current = name
+            currentPositionRef.current = 0
+            currentDurationRef.current = 0
+            setFilename(name)
+
+            // Check if this file has a saved position
+            const savedPos = resumePositions.getPosition(name)
+            if (savedPos && savedPos.position > 30) {
+                setResumePrompt({
+                    key: name,
+                    position: savedPos.position,
+                    title: savedPos.title
+                })
+            }
+        }
+        ipcRenderer.on('mpv-filename', onFilenameChange)
+
+        // Remote Events
+        const onRemoteConnected = (_: any, data: any) => {
+            setRemoteConnected(true)
+            setShowRemote(false)
+            setToastMsg('Smartphone Connected 📱')
+            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+            toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 3000)
+        }
+
+        const onRemoteDisconnected = (_: any, data: any) => {
+            if (data.count === 0) {
+                setRemoteConnected(false)
+                setToastMsg('Smartphone Disconnected')
+                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 3000)
+            }
+        }
+        ipcRenderer.on('remote-client-connected', onRemoteConnected)
+        ipcRenderer.on('remote-client-disconnected', onRemoteDisconnected)
+
         ipcRenderer.on('mpv-load-file', (_: any, filePath: string) => {
             console.log('CLI Open File:', filePath)
             ipcRenderer.send('mpv-load', filePath)
             setHasLoadedFile(true)
         })
 
+        // Save position when window closes
+        const handleBeforeUnload = () => {
+            if (currentFileRef.current && currentPositionRef.current > 0) {
+                resumePositions.savePosition(
+                    currentFileRef.current,
+                    currentFileRef.current.split(/[/\\]/).pop() || currentFileRef.current,
+                    currentPositionRef.current,
+                    currentDurationRef.current
+                )
+            }
+        }
+        window.addEventListener('beforeunload', handleBeforeUnload)
+
         return () => {
             ipcRenderer.removeListener('mpv-msg', onMpvMsg)
+            ipcRenderer.removeListener('mpv-time', onMpvTime)
+            ipcRenderer.removeListener('mpv-duration', onMpvDurationForResume)
             ipcRenderer.removeAllListeners('mpv-filename')
             ipcRenderer.removeAllListeners('mpv-load-file')
+            window.removeEventListener('beforeunload', handleBeforeUnload)
         }
-    }, [])
+    }, [resumePositions.savePosition, resumePositions.getPosition])
 
     // Drag and Drop handlers - Only show overlay for real FILES, not internal drags
     const handleDragOver = (e: DragEvent) => {
@@ -350,6 +445,92 @@ function App(): JSX.Element {
                 </div>
             )}
 
+            {/* Smart Resume Prompt */}
+            {resumePrompt && (
+                <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 900,
+                    background: 'rgba(12, 12, 12, 0.9)',
+                    backdropFilter: 'blur(20px)',
+                    borderRadius: '16px',
+                    padding: '24px 32px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '16px',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    animation: 'fadeIn 0.3s ease'
+                }}>
+                    <span style={{
+                        fontSize: '15px',
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: 500,
+                        color: 'rgba(255,255,255,0.95)',
+                        marginBottom: '4px'
+                    }}>
+                        Resume from {formatTime(resumePrompt.position)}?
+                    </span>
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                            onClick={() => {
+                                ipcRenderer.send('mpv-seek-to', resumePrompt.position)
+                                setResumePrompt(null)
+                            }}
+                            style={{
+                                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '6px 14px',
+                                color: '#fff',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                fontFamily: 'Inter, sans-serif',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                        >
+                            Resume
+                        </button>
+                        <button
+                            onClick={() => {
+                                resumePositions.clearPosition(resumePrompt.key)
+                                setResumePrompt(null)
+                            }}
+                            style={{
+                                background: 'rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '6px',
+                                padding: '6px 14px',
+                                color: 'rgba(255,255,255,0.8)',
+                                fontSize: '12px',
+                                fontFamily: 'Inter, sans-serif',
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.12)'
+                                e.currentTarget.style.transform = 'translateY(-1px)'
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                                e.currentTarget.style.transform = 'translateY(0)'
+                            }}
+                        >
+                            Start Over
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Startup/Welcome Overlay */}
             {!isDragOver && !hasStarted && (
                 <div style={{
@@ -416,8 +597,8 @@ function App(): JSX.Element {
                     transition: 'opacity 0.5s ease',
                     pointerEvents: 'none',
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
+                    flexDirection: 'column',
+                    gap: '4px'
                 }}>
                     {/* Smoke background */}
                     <div style={{
@@ -443,6 +624,21 @@ function App(): JSX.Element {
                     }}>
                         {filename}
                     </span>
+                    {/* Playlist Position Indicator */}
+                    {(isPlaylistActive || localQueue.isQueueActive) && (
+                        <span style={{
+                            fontSize: '10px',
+                            fontFamily: 'Inter, sans-serif',
+                            fontWeight: 500,
+                            color: 'rgba(255,255,255,0.5)',
+                            textShadow: '0 1px 4px rgba(0,0,0,0.5)'
+                        }}>
+                            {isPlaylistActive
+                                ? `${currentIndex + 1} of ${totalItems}`
+                                : `${localQueue.currentIndex + 1} of ${localQueue.totalItems}`
+                            }
+                        </span>
+                    )}
                 </div>
             )}
 
@@ -528,7 +724,10 @@ function App(): JSX.Element {
             }}>
                 <Controls
                     showSettings={showSettings}
-                    setShowSettings={setShowSettings}
+                    setShowSettings={(val: any) => {
+                        setShowSettings(val)
+                        if (val === true) setShowRemote(false) // Close remote if settings open
+                    }}
                     filename={filename}
                     onMouseEnter={() => setIsHoveringControls(true)}
                     onMouseLeave={() => setIsHoveringControls(false)}
@@ -536,8 +735,17 @@ function App(): JSX.Element {
                     setIsLoadingUrl={setIsLoadingUrl}
                     showUrlInput={showUrlInput}
                     setShowUrlInput={setShowUrlInput}
+
+                    toggleRemote={() => {
+                        if (!showRemote) setShowSettings(false) // Close settings if remote opens
+                        setShowRemote(!showRemote)
+                    }}
+                    remoteConnected={remoteConnected}
                 />
             </div>
+
+            {/* Remote Modal (Top Level) */}
+            {showRemote && <RemoteModal onClose={() => setShowRemote(false)} />}
 
             {/* Toast Notification */}
             {toastMsg && (

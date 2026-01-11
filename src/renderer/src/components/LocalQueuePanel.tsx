@@ -201,7 +201,7 @@ export default function LocalQueuePanel({
                         fontFamily: 'Inter, sans-serif',
                         whiteSpace: 'nowrap'
                     }}>
-                        Cola
+                        Queue
                     </h2>
                 </div>
                 <button
@@ -245,7 +245,7 @@ export default function LocalQueuePanel({
                         color: 'rgba(255,255,255,0.5)',
                         fontFamily: 'Inter, sans-serif'
                     }}>
-                        {isDragOver ? '¡Suelta!' : 'Arrastra archivos'}
+                        {isDragOver ? 'Drop Here!' : 'Drag files here'}
                     </p>
                 )}
                 <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -266,7 +266,7 @@ export default function LocalQueuePanel({
                             transition: 'all 0.2s'
                         }}
                     >
-                        <Plus size={queue.length > 0 ? 12 : 14} /> {queue.length > 0 ? '' : 'Archivos'}
+                        <Plus size={queue.length > 0 ? 12 : 14} /> {queue.length > 0 ? '' : 'Files'}
                     </button>
                     <button
                         onClick={handleAddFolder}
@@ -285,7 +285,7 @@ export default function LocalQueuePanel({
                             transition: 'all 0.2s'
                         }}
                     >
-                        <FolderOpen size={queue.length > 0 ? 12 : 14} /> {queue.length > 0 ? 'Carpeta' : 'Carpeta'}
+                        <FolderOpen size={queue.length > 0 ? 12 : 14} /> {queue.length > 0 ? 'Folder' : 'Folder'}
                     </button>
                 </div>
             </div>
@@ -431,7 +431,7 @@ export default function LocalQueuePanel({
                             transition: 'all 0.2s'
                         }}
                     >
-                        <Trash2 size={12} /> Limpiar ({queue.length})
+                        <Trash2 size={12} /> Clear ({queue.length})
                     </button>
                 </div>
             )}

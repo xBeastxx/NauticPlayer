@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock, Loader2, History, ChevronLeft, ChevronRight, ListMusic } from 'lucide-react'
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock, Loader2, History, ChevronLeft, ChevronRight, ListMusic, Smartphone } from 'lucide-react'
 import SettingsMenu from './SettingsMenu'
 import HistoryPanel from './HistoryPanel'
 import LocalQueuePanel from './LocalQueuePanel'
+
 import { useHistory } from '../hooks/useHistory'
 import { usePlaylist } from '../hooks/usePlaylist'
 import { useLocalQueue } from '../hooks/useLocalQueue'
@@ -49,7 +50,7 @@ const formatTime = (seconds: number): string => {
 
 // ... imports
 
-export default function Controls({ showSettings, setShowSettings, filename, onMouseEnter, onMouseLeave, isLoadingUrl, setIsLoadingUrl, showUrlInput, setShowUrlInput }: any): JSX.Element {
+export default function Controls({ showSettings, setShowSettings, filename, onMouseEnter, onMouseLeave, isLoadingUrl, setIsLoadingUrl, showUrlInput, setShowUrlInput, toggleRemote, remoteConnected }: any): JSX.Element {
     // Playback State
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
@@ -90,6 +91,7 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
 
     // History State
     const [showHistory, setShowHistory] = useState(false)
+
     const {
         history,
         searchQuery,
@@ -649,7 +651,6 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
 
                         <FloatingButton onClick={() => ipcRenderer.send('mpv-jump', 10)}><SkipForward size={24} fill="#fff" /></FloatingButton>
 
-                        {/* Next in Playlist or Local Queue */}
                         {(isPlaylistActive || localQueue.isQueueActive) && (
                             <FloatingButton
                                 onClick={() => {
@@ -661,35 +662,34 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                                 <ChevronRight size={20} />
                             </FloatingButton>
                         )}
-
-                        {/* Position Indicator (YouTube or Local Queue) */}
-                        {(isPlaylistActive || localQueue.isQueueActive) && (
-                            <span style={{
-                                fontSize: '11px',
-                                fontFamily: 'Inter',
-                                opacity: 0.7,
-                                background: 'rgba(0,0,0,0.3)',
-                                padding: '4px 8px',
-                                borderRadius: '10px',
-                                marginLeft: '5px'
-                            }}>
-                                {isPlaylistActive
-                                    ? `${currentIndex + 1} / ${totalItems}`
-                                    : `${localQueue.currentIndex + 1} / ${localQueue.totalItems}`
-                                }
-                            </span>
-                        )}
                     </div>
 
 
                     {/* Right Tools - Cleaner, just Settings + Fullscreen */}
                     <div style={{ display: 'flex', gap: '15px' }}>
 
-                        <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowHistory(!showHistory) }} data-history-button="true">
+                        <FloatingButton onClick={(e: any) => {
+                            e.stopPropagation();
+                            toggleRemote();
+                            setShowHistory(false); // Close History
+                            setShowSettings(false); // Close Settings (if open)
+                        }} data-remote-button="true">
+                            <Smartphone size={20} color={remoteConnected ? "#3b82f6" : "rgba(255,255,255,0.7)"} style={remoteConnected ? { filter: 'drop-shadow(0 0 5px #3b82f6)' } : {}} />
+                        </FloatingButton>
+
+                        <FloatingButton onClick={(e: any) => {
+                            e.stopPropagation();
+                            setShowHistory(!showHistory);
+                            if (!showHistory) setShowSettings(false); // Close Settings if opening History 
+                        }} data-history-button="true">
                             <History size={20} color={showHistory ? "#fff" : "rgba(255,255,255,0.7)"} />
                         </FloatingButton>
 
-                        <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowSettings(!showSettings) }} data-settings-button="true">
+                        <FloatingButton onClick={(e: any) => {
+                            e.stopPropagation();
+                            setShowSettings(!showSettings);
+                            if (!showSettings) setShowHistory(false); // Close History if opening Settings
+                        }} data-settings-button="true">
                             <Settings size={20} color={showSettings ? "#fff" : "rgba(255,255,255,0.7)"} />
                         </FloatingButton>
 
@@ -754,6 +754,7 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                 onClearQueue={localQueue.clearQueue}
                 onReorder={localQueue.reorder}
             />
-        </div >
+            {/* Remote Modal (Moved to App.tsx) */}
+        </div>
     )
 }
