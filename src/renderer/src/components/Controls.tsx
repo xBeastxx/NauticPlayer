@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock, Loader2, History } from 'lucide-react'
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock, Loader2, History, ChevronLeft, ChevronRight, ListMusic } from 'lucide-react'
 import SettingsMenu from './SettingsMenu'
 import HistoryPanel from './HistoryPanel'
+import LocalQueuePanel from './LocalQueuePanel'
 import { useHistory } from '../hooks/useHistory'
+import { usePlaylist } from '../hooks/usePlaylist'
+import { useLocalQueue } from '../hooks/useLocalQueue'
 
 // Use window.require for Electron in Vite context
 const { ipcRenderer } = (window as any).require('electron')
@@ -94,6 +97,13 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
         removeFromHistory,
         clearHistory
     } = useHistory()
+
+    // Playlist State (YouTube)
+    const { playlist, currentIndex, isPlaylistActive, totalItems, playNext, playPrevious, playIndex } = usePlaylist()
+
+    // Local Queue State
+    const [showQueue, setShowQueue] = useState(false)
+    const localQueue = useLocalQueue()
 
     // Drag State
     const [isDraggingTime, setIsDraggingTime] = useState(false)
@@ -497,6 +507,11 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                     {/* Left Tools */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
 
+                        {/* Queue Toggle Button */}
+                        <FloatingButton onClick={(e: any) => { e.stopPropagation(); setShowQueue(!showQueue) }} data-queue-button="true">
+                            <ListMusic size={18} color={showQueue || localQueue.isQueueActive ? "#fff" : "rgba(255,255,255,0.7)"} />
+                        </FloatingButton>
+
                         {/* Expandable Volume Control */}
                         <div
                             onMouseEnter={() => setShowVolume(true)}
@@ -596,7 +611,20 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                     </div>
 
                     {/* Playback Controls */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        {/* Previous in Playlist or Local Queue */}
+                        {(isPlaylistActive || localQueue.isQueueActive) && (
+                            <FloatingButton
+                                onClick={() => {
+                                    if (isPlaylistActive) playPrevious()
+                                    else localQueue.playPrevious()
+                                }}
+                                style={{ opacity: (isPlaylistActive ? currentIndex > 0 : localQueue.currentIndex > 0) ? 1 : 0.3 }}
+                            >
+                                <ChevronLeft size={20} />
+                            </FloatingButton>
+                        )}
+
                         <FloatingButton onClick={() => ipcRenderer.send('mpv-jump', -10)}><SkipBack size={24} fill="#fff" /></FloatingButton>
 
                         <FloatingButton onClick={togglePlay} hero>
@@ -608,6 +636,37 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                         </FloatingButton>
 
                         <FloatingButton onClick={() => ipcRenderer.send('mpv-jump', 10)}><SkipForward size={24} fill="#fff" /></FloatingButton>
+
+                        {/* Next in Playlist or Local Queue */}
+                        {(isPlaylistActive || localQueue.isQueueActive) && (
+                            <FloatingButton
+                                onClick={() => {
+                                    if (isPlaylistActive) playNext()
+                                    else localQueue.playNext()
+                                }}
+                                style={{ opacity: (isPlaylistActive ? currentIndex < totalItems - 1 : localQueue.currentIndex < localQueue.totalItems - 1) ? 1 : 0.3 }}
+                            >
+                                <ChevronRight size={20} />
+                            </FloatingButton>
+                        )}
+
+                        {/* Position Indicator (YouTube or Local Queue) */}
+                        {(isPlaylistActive || localQueue.isQueueActive) && (
+                            <span style={{
+                                fontSize: '11px',
+                                fontFamily: 'Inter',
+                                opacity: 0.7,
+                                background: 'rgba(0,0,0,0.3)',
+                                padding: '4px 8px',
+                                borderRadius: '10px',
+                                marginLeft: '5px'
+                            }}>
+                                {isPlaylistActive
+                                    ? `${currentIndex + 1} / ${totalItems}`
+                                    : `${localQueue.currentIndex + 1} / ${localQueue.totalItems}`
+                                }
+                            </span>
+                        )}
                     </div>
 
 
@@ -632,26 +691,28 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
 
 
             {/* Settings Menu Overlay */}
-            {showSettings && (
-                <div ref={settingsMenuRef} style={{ display: 'contents' }}>
-                    <SettingsMenu
-                        onClose={() => setShowSettings(false)}
-                        currentTracks={tracks}
-                        showStats={showStats}
-                        toggleStats={toggleStats}
-                        hwDec={hwDec}
-                        setHwDec={setHwDec}
-                        anime4K={anime4K}
-                        setAnime4K={setAnime4K}
-                        loopState={loopState}
-                        setLoopState={setLoopState}
-                        filename={filename}
-                        alwaysOnTop={alwaysOnTop}
-                        setAlwaysOnTop={setAlwaysOnTop}
-                        isPlaying={isPlaying}
-                    />
-                </div>
-            )}
+            {
+                showSettings && (
+                    <div ref={settingsMenuRef} style={{ display: 'contents' }}>
+                        <SettingsMenu
+                            onClose={() => setShowSettings(false)}
+                            currentTracks={tracks}
+                            showStats={showStats}
+                            toggleStats={toggleStats}
+                            hwDec={hwDec}
+                            setHwDec={setHwDec}
+                            anime4K={anime4K}
+                            setAnime4K={setAnime4K}
+                            loopState={loopState}
+                            setLoopState={setLoopState}
+                            filename={filename}
+                            alwaysOnTop={alwaysOnTop}
+                            setAlwaysOnTop={setAlwaysOnTop}
+                            isPlaying={isPlaying}
+                        />
+                    </div>
+                )
+            }
 
             {/* History Panel */}
             <HistoryPanel
@@ -668,6 +729,19 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
                 onRemoveItem={removeFromHistory}
                 onClearAll={clearHistory}
             />
-        </div>
+
+            {/* Local Queue Panel (Left Side) */}
+            <LocalQueuePanel
+                isOpen={showQueue}
+                onClose={() => setShowQueue(false)}
+                queue={localQueue.queue}
+                currentIndex={localQueue.currentIndex}
+                onPlayIndex={localQueue.playIndex}
+                onAddFiles={localQueue.addFiles}
+                onRemoveItem={localQueue.removeItem}
+                onClearQueue={localQueue.clearQueue}
+                onReorder={localQueue.reorder}
+            />
+        </div >
     )
 }

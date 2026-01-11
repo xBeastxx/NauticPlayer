@@ -32,6 +32,24 @@ export function isYouTubeUrl(url: string): boolean {
 }
 
 /**
+ * Check if a URL is a YouTube PLAYLIST URL
+ */
+export function isYouTubePlaylist(url: string): boolean {
+  return url.includes('list=') && (
+    url.includes('youtube.com') || url.includes('youtu.be')
+  )
+}
+
+export interface PlaylistItem {
+  id: string
+  url: string
+  title: string
+  thumbnail: string
+  duration: number
+  index: number
+}
+
+/**
  * Extract YouTube video metadata using yt-dlp
  */
 export async function extractYouTubeMetadata(url: string): Promise<YouTubeMetadata | null> {
@@ -107,6 +125,85 @@ export async function extractYouTubeMetadata(url: string): Promise<YouTubeMetada
     } catch (error) {
       logger.error('[HISTORY] extractYouTubeMetadata error:', error)
       resolve(null)
+    }
+  })
+}
+
+/**
+ * Extract all videos from a YouTube playlist using yt-dlp --flat-playlist
+ */
+export async function extractYouTubePlaylist(playlistUrl: string): Promise<PlaylistItem[]> {
+  return new Promise((resolve) => {
+    try {
+      const binPath = is.dev
+        ? join(__dirname, '../../resources/bin')
+        : join(process.resourcesPath, 'bin')
+      const ytdlPath = join(binPath, 'yt-dlp.exe')
+
+      logger.log('[PLAYLIST] Extracting playlist:', playlistUrl)
+
+      const proc = spawn(ytdlPath, [
+        '--flat-playlist',
+        '-J',
+        '--no-warnings',
+        playlistUrl
+      ], {
+        windowsHide: true
+      })
+
+      let output = ''
+      let errorOutput = ''
+
+      proc.stdout.on('data', (data) => {
+        output += data.toString()
+      })
+
+      proc.stderr.on('data', (data) => {
+        errorOutput += data.toString()
+      })
+
+      proc.on('close', (code) => {
+        if (code !== 0 || !output) {
+          logger.error('[PLAYLIST] yt-dlp failed:', errorOutput || `Exit code ${code}`)
+          resolve([])
+          return
+        }
+
+        try {
+          const json = JSON.parse(output)
+          const entries = json.entries || []
+          
+          const items: PlaylistItem[] = entries.map((entry: any, index: number) => ({
+            id: entry.id || randomUUID(),
+            url: entry.url || `https://www.youtube.com/watch?v=${entry.id}`,
+            title: entry.title || `Video ${index + 1}`,
+            thumbnail: entry.thumbnails?.[0]?.url || '',
+            duration: entry.duration || 0,
+            index: index
+          }))
+
+          logger.log(`[PLAYLIST] Extracted ${items.length} videos from playlist`)
+          resolve(items)
+        } catch (parseError) {
+          logger.error('[PLAYLIST] Failed to parse playlist:', parseError)
+          resolve([])
+        }
+      })
+
+      proc.on('error', (err) => {
+        logger.error('[PLAYLIST] Failed to spawn yt-dlp:', err)
+        resolve([])
+      })
+
+      // Timeout after 30 seconds for playlists (can be larger)
+      setTimeout(() => {
+        proc.kill()
+        resolve([])
+      }, 30000)
+
+    } catch (error) {
+      logger.error('[PLAYLIST] extractYouTubePlaylist error:', error)
+      resolve([])
     }
   })
 }

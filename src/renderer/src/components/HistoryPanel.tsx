@@ -70,7 +70,8 @@ export default function HistoryPanel({
                 position: 'fixed',
                 top: 0,
                 right: 0,
-                width: '340px',
+                width: 'clamp(260px, 38vw, 340px)',
+                maxWidth: '90vw',
                 height: '100vh',
                 background: 'rgba(12, 12, 12, 0.98)',
                 backdropFilter: 'blur(20px)',
@@ -85,17 +86,17 @@ export default function HistoryPanel({
         >
             {/* Header */}
             <div style={{
-                padding: '20px',
+                padding: 'clamp(12px, 2.5vw, 20px)',
                 borderBottom: '1px solid rgba(255,255,255,0.08)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Clock size={20} color="rgba(255,255,255,0.7)" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(6px, 1vw, 10px)' }}>
+                    <Clock size={18} color="rgba(255,255,255,0.7)" />
                     <h2 style={{
                         margin: 0,
-                        fontSize: '16px',
+                        fontSize: 'clamp(12px, 1.8vw, 16px)',
                         fontWeight: 600,
                         color: '#fff',
                         fontFamily: 'Inter, sans-serif'

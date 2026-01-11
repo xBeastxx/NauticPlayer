@@ -9,7 +9,7 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import * as net from 'net'
 import { getIsFullScreen } from './index'
-import { isYouTubeUrl, extractYouTubeMetadata } from './lib/historyService'
+import { isYouTubeUrl, extractYouTubeMetadata, isYouTubePlaylist, extractYouTubePlaylist } from './lib/historyService'
 
 let mpvProcess: ChildProcess | null = null
 let ipcSocket: net.Socket | null = null
@@ -160,6 +160,10 @@ function handleMpvMessage(msg: any, uiSender: Electron.WebContents, hostWindow: 
       if (msg.reason === 'error') {
           uiSender.send('mpv-error', 'Failed to load file')
       }
+      // Emit file-ended for playlist auto-advance (eof = natural end)
+      if (msg.reason === 'eof') {
+          uiSender.send('mpv-file-ended', { reason: 'eof' })
+      }
   }
 
   if (msg.event === 'property-change') {
@@ -280,6 +284,34 @@ export function setupIpcHandlers(uiSender: Electron.WebContents, hostWindow: Bro
     // Lazy: Init with hostWindow (WID) and uiSender (View)
     if (!mpvInitialized) {
          setupMpvController(hostWindow, uiSender)
+    }
+    
+    // Check if this is a YouTube PLAYLIST
+    if (isYouTubePlaylist(filePath)) {
+      // Extract all videos from the playlist
+      const playlistItems = await extractYouTubePlaylist(filePath)
+      
+      if (playlistItems.length > 0 && !uiSender.isDestroyed()) {
+        // Emit playlist data to renderer
+        uiSender.send('playlist-loaded', playlistItems)
+        
+        // Auto-play the first video
+        const firstVideo = playlistItems[0]
+        sendCommand({ command: ['loadfile', firstVideo.url] })
+        
+        // Also extract metadata for the first video
+        if (isYouTubeUrl(firstVideo.url)) {
+          extractYouTubeMetadata(firstVideo.url).then(metadata => {
+            if (metadata && !uiSender.isDestroyed()) {
+              uiSender.send('youtube-metadata', metadata)
+            }
+          })
+        }
+      } else {
+        // Playlist extraction failed, try loading as single video
+        sendCommand({ command: ['loadfile', filePath] })
+      }
+      return
     }
     
     // Extract YouTube metadata if applicable (async, non-blocking)

@@ -62,16 +62,17 @@ function App(): JSX.Element {
         }
     }, [])
 
-    // Drag and Drop handlers
+    // Drag and Drop handlers - Only show overlay for real FILES, not internal drags
     const handleDragOver = (e: DragEvent) => {
         e.preventDefault()
-        e.stopPropagation()
-        setIsDragOver(true)
+        // Only show drop overlay if dragging real files (not internal elements)
+        if (e.dataTransfer?.types?.includes('Files')) {
+            setIsDragOver(true)
+        }
     }
 
     const handleDragLeave = (e: DragEvent) => {
         e.preventDefault()
-        e.stopPropagation()
 
         // Only disable if we are actually leaving the container (not just entering a child)
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -81,15 +82,24 @@ function App(): JSX.Element {
 
     const handleDrop = (e: DragEvent) => {
         e.preventDefault()
-        e.stopPropagation()
         setIsDragOver(false)
-        setHasLoadedFile(true)
 
+        // Check for real files first (from file explorer)
         const files = e.dataTransfer.files
         if (files.length > 0) {
+            setHasLoadedFile(true)
             const filePath = (files[0] as any).path
             console.log('Loading file:', filePath)
             ipcRenderer.send('mpv-load', filePath)
+            return
+        }
+
+        // Check for queue item drop (text/plain contains file path)
+        const queueItemPath = e.dataTransfer.getData('text/plain')
+        if (queueItemPath && queueItemPath.length > 0) {
+            console.log('Loading from queue drop:', queueItemPath)
+            setHasLoadedFile(true)
+            ipcRenderer.send('mpv-load', queueItemPath)
         }
     }
 
@@ -265,12 +275,8 @@ function App(): JSX.Element {
                 borderRadius: '0',
                 background: hasStarted ? 'rgba(0, 0, 0, 0.01)' : 'rgba(0, 0, 0, 0.7)',
                 backdropFilter: hasStarted ? 'none' : 'blur(20px)',
-                boxShadow: 'none',
-                pointerEvents: 'none' // CRITICAL: Let clicks pass through empty areas? Actually we need drag/drop.
-                // If we set 'none', drag/drop on container might fail. 
-                // BUT, the 'drag-region' handles window drag.
-                // The issue is likely the 'controls' container blocking.
-                // Let's keep it default but ensure children are correct.
+                boxShadow: 'none'
+                // pointerEvents defaults to 'auto' which allows drag/drop to work
             }}
         >
             {/* Drag Overlay */}
@@ -350,17 +356,70 @@ function App(): JSX.Element {
                 </div>
             )}
 
-            {/* Draggable Title Bar Area - Adjusted to avoid blocking controls */}
-            <div className="drag-region" style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '30px', // Reduced height to avoid overlap
-                zIndex: 700,
-                WebkitAppRegion: 'drag',
-                pointerEvents: 'auto' // Needs events to drag
-            } as any}></div>
+            {/* Draggable Title Bar Area - Allows drops to pass through */}
+            <div className="drag-region"
+                style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '30px',
+                    zIndex: 700,
+                    WebkitAppRegion: 'drag'
+                } as any}
+                onDragOver={(e) => {
+                    e.preventDefault()
+                    if (e.dataTransfer?.types?.includes('Files') || e.dataTransfer?.types?.includes('text/plain')) {
+                        setIsDragOver(true)
+                    }
+                }}
+                onDrop={(e) => {
+                    e.preventDefault()
+                    handleDrop(e as any)
+                }}
+            ></div>
+
+            {/* Now Playing Title (Top Left) */}
+            {hasStarted && filename && (
+                <div style={{
+                    position: 'absolute',
+                    top: '10px',
+                    left: '15px',
+                    maxWidth: 'calc(100% - 150px)',
+                    zIndex: 800,
+                    opacity: showControls ? 1 : 0,
+                    transition: 'opacity 0.5s ease',
+                    pointerEvents: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}>
+                    {/* Smoke background */}
+                    <div style={{
+                        position: 'absolute',
+                        top: '-30px',
+                        left: '-40px',
+                        width: '200px',
+                        height: '100px',
+                        background: 'radial-gradient(circle at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.2) 50%, transparent 70%)',
+                        zIndex: -1,
+                        pointerEvents: 'none',
+                        filter: 'blur(15px)'
+                    }}></div>
+                    <span style={{
+                        fontSize: 'clamp(11px, 1.4vw, 14px)',
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: 500,
+                        color: 'rgba(255,255,255,0.85)',
+                        textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                    }}>
+                        {filename}
+                    </span>
+                </div>
+            )}
 
             {/* Window Controls (Top Right) */}
             <div style={{

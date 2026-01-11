@@ -118,6 +118,18 @@ input[type="range"]::-webkit-slider-thumb:hover {
     }
 }
 
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
 .url-dialog-overlay {
     position: fixed;
     top: 0;

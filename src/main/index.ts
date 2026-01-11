@@ -164,17 +164,47 @@ ipcMain.on('toggle-fullscreen', () => {
   }
 })
 
-ipcMain.handle('open-file-dialog', async () => {
+ipcMain.handle('open-file-dialog', async (_event, options?: any) => {
   if (!mainWindow) return null
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile'],
-      filters: [
-        { name: 'Videos', extensions: ['mkv', 'mp4', 'avi', 'mov', 'webm'] },
+      properties: options?.properties || ['openFile'],
+      title: options?.title || 'Open Video',
+      filters: options?.filters || [
+        { name: 'Videos', extensions: ['mkv', 'mp4', 'avi', 'mov', 'webm', 'wmv', 'flv', 'm4v', 'mpg', 'mpeg', '3gp', 'ts'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     })
     if (canceled) return null
-    return filePaths[0]
+    // Return array if multiSelections, single path otherwise
+    return options?.properties?.includes('multiSelections') ? filePaths : filePaths[0]
+})
+
+ipcMain.handle('open-folder-dialog', async (_event, options?: any) => {
+  if (!mainWindow) return null
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: options?.title || 'Select Folder'
+  })
+  if (canceled || filePaths.length === 0) return null
+  
+  // Scan folder for video files
+  const folderPath = filePaths[0]
+  const fs = await import('fs')
+  const path = await import('path')
+  const videoExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpg', '.mpeg', '.3gp', '.ts']
+  
+  try {
+    const files = await fs.promises.readdir(folderPath)
+    const videoFiles = files
+      .filter(f => videoExtensions.includes(path.extname(f).toLowerCase()))
+      .map(f => path.join(folderPath, f))
+      .sort() // Sort alphabetically
+    
+    return { folder: folderPath, files: videoFiles }
+  } catch (e) {
+    console.error('[FOLDER_DIALOG] Failed to read folder:', e)
+    return null
+  }
 })
 
 ipcMain.handle('get-legal-content', async (_event, filename: string) => {
