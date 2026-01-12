@@ -1,18 +1,21 @@
-# Privacy Policy
+# PRIVACY POLICY for NauticPlayer™
 
-**Last Updated:** December 2025
+**Effective Date: January 2026**
 
-## 1. Introduction
-NauticPlayer, developed by Manuel Perez Rodriguez (NauticGames), respects your privacy. This application is designed to run locally on your machine.
+**NauticGames™** ("We") is committed to protecting your privacy. This policy explains how NauticPlayer™ handles your data.
 
-## 2. Data Collection
-We do not collect, store, or transmit your personal data to our servers. Any playback history or settings preferences are stored entirely locally on your device.
+## 1. NO DATA COLLECTION
+NauticPlayer™ is designed as a privacy-first, local application.
+- We do **NOT** collect, store, or transmit your personal data, playback history, or files to our servers.
+- All settings and history are stored locally on your device (e.g., inside `config.json`).
 
-## 3. Third-Party Services
-The application interacts with specific third-party APIs only when requested by you. For example, when searching for subtitles, your search query and file identifier are sent to the subtitle provider. Similarly, when streaming video, data is exchanged directly between your device and the content platform.
+## 2. THIRD-PARTY INTERACTIONS
+The specific features of the application may interact with third-party services directly from your device:
+- **Subtitles:** When searching for subtitles, file metadata (hash) is sent anonymously to OpenSubtitles.com API to retrieve matches.
+- **Streaming:** When playing online content, your device establishes a direct connection with the content provider (e.g., YouTube videos) using `yt-dlp`. These providers may collect IP addresses or usage data subject to their own privacy policies.
 
-## 4. Analytics
-No tracking cookies or analytics software are embedded in this application.
+## 3. ANALYTICS
+This software contains **NO** trackers, analytics, or telemetry scripts. Your usage is your business.
 
-## 5. Contact
-For privacy concerns or inquiries, please contact us at: **nauticgamesstudios@gmail.com**
+## 4. CONTACT
+For any inquiries regarding this policy, please contact **NauticGames™** directly.

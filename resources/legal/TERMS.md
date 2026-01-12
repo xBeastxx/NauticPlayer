@@ -1,24 +1,31 @@
-# Terms and Conditions
+# TERMS AND CONDITIONS for NauticPlayer™
 
-**Last Updated:** December 2025
+**Last Updated: January 2026**
 
-## 1. Introduction
-Welcome to NauticPlayer, a free media player software developed by Manuel Perez Rodriguez (NauticGames). By downloading or using this software, you agree to these Terms and Conditions.
+## 1. ACCEPTANCE
+By downloading or using NauticPlayer™, you agree to these Terms. If you do not agree, you are prohibited from using this software.
 
-## 2. Free Use License
-NauticPlayer is a free software product provided to the community. You are granted a non-exclusive license to use this software for any personal or commercial purpose free of charge. You may share the installer with others, provided you do not charge for it.
+## 2. OWNERSHIP
+NauticPlayer™ is a proprietary product of **NauticGames™**.
+- **Creator & Lead Developer:** Manuel Perez Rodriguez
+- **Strategic Collaborator:** Ivan Manso
 
-## 3. No Warranty
-This software is provided as a free tool for the community. It comes with absolutely no warranty. The developers are not responsible for any issues that may arise from its use.
+All rights reserved. The software is licensed, not sold.
 
-## 4. Updates
-We may provide updates to add features or fix bugs. These terms apply to all updates.
+## 3. PROHIBITED ACTIVITIES
+You agree not to:
+- Use the software for any illegal purpose.
+- Bypass, disable, or tamper with any security or license enforcement mechanisms.
+- Distribute modified or "cracked" versions of the software.
+- Remove or alter any proprietary notices, labels, or marks from the Software.
 
-## 5. Third-Party Rights
-This software integrates widely utilized open-source components for media processing. These components remain the property of their respective authors and are subject to their own open-source licenses. NauticPlayer claims no ownership over these specific engines.
+## 4. CONTENT LIABILITY AND STREAMING
+NauticPlayer™ is a tool for media playback. It may provide access to third-party content streams (via yt-dlp or other mechanisms).
+- **User Responsibility:** You are solely responsible for the content you access, download, or stream. NauticGames™ does not host, control, or endorse any third-party content.
+- **Third-Party Services:** Interactions with platforms like YouTube or OpenSubtitles are subject to their respective Terms of Service.
 
-## 6. Limitation of Liability
-The software is provided "as is". The developers are not liable for any damages arising from the use of this software.
+## 5. INDEMNIFICATION
+You agree to indemnify and hold harmless **NauticGames™**, **Manuel Perez Rodriguez**, and **Ivan Manso** from any claims, damages, or expenses arising from your use of the Software or violation of these Terms.
 
-## 7. Contact Information
-For support or inquiries, please contact: **nauticgamesstudios@gmail.com**
+## 6. GOVERNING LAW
+These Terms shall be governed by and construed in accordance with the laws of the jurisdiction of the Licensor.
