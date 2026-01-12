@@ -832,7 +832,7 @@ export default function SettingsMenu({
                             </div>
 
                             <div style={{ padding: '12px 32px', fontSize: '10px', color: 'rgba(255,255,255,0.15)', textAlign: 'center' }}>
-                                NauticPlayer v1.0.3 • NauticGames™
+                                NauticPlayer v1.0.4 • NauticGames™
                             </div>
                         </>
                     )

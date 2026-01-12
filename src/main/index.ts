@@ -350,7 +350,11 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray(win: BrowserWindow): Tray {
-    const appIcon = nativeImage.createFromPath(icon)
+    const iconPath = is.dev
+        ? join(__dirname, '../../resources/NauticPlayerIcon.ico')
+        : join(process.resourcesPath, 'NauticPlayerIcon.ico')
+        
+    const appIcon = nativeImage.createFromPath(iconPath)
     const trayInstance = new Tray(appIcon)
     
     const contextMenu = Menu.buildFromTemplate([
