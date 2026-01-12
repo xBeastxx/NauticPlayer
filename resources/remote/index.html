@@ -494,6 +494,93 @@
             background: rgba(59, 130, 246, 0.1);
         }
 
+        .track-row.selected {
+            color: var(--primary);
+            font-weight: 700;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        /* === EXPLORER MODAL === */
+        .explorer-breadcrumbs {
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 12px;
+            color: var(--text-dim);
+            white-space: nowrap;
+            overflow-x: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .breadcrumb-item {
+            color: var(--primary);
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .breadcrumb-sep {
+            opacity: 0.4;
+        }
+
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .file-item:active {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .file-icon {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            color: var(--text-dim);
+        }
+
+        .file-icon.folder {
+            color: #fbbf24;
+            /* Amber-400 */
+            fill: currentColor;
+        }
+
+        .file-icon.video {
+            color: #3b82f6;
+            /* Blue-500 */
+        }
+
+        .file-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
+
+        .file-meta {
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
         /* === RECONNECTION BANNER === */
         .reconnect-banner {
             position: fixed;
@@ -911,6 +998,91 @@
         </button>
     </div>
 
+    <!-- styles for resume panel -->
+    <style>
+        .resume-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 6000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .resume-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .resume-card {
+            background: var(--surface-2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 320px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            transform: scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .resume-overlay.show .resume-card {
+            transform: scale(1);
+        }
+
+        .resume-time {
+            font-size: 2em;
+            font-weight: 700;
+            margin: 10px 0 20px 0;
+            color: var(--primary);
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+
+    <!-- Resume Prompt Panel (Centered) -->
+    <div class="resume-overlay" id="resume-panel">
+        <div class="resume-card">
+            <h3 style="margin: 0; font-size: 1.1em; color: var(--text-dim)">Resume Playback?</h3>
+            <div id="resume-text" class="resume-time">00:00</div>
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn"
+                    style="flex: 1; background: var(--surface-3); color: var(--text); padding: 16px; font-size: 1.1em;"
+                    onclick="window.dismissResume()">Start Over</button>
+                <button class="btn"
+                    style="flex: 1; background: var(--primary); color: white; padding: 16px; font-size: 1.1em;"
+                    onclick="window.confirmResume()">Resume</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Explorer Modal -->
+    <div class="modal" id="explorer-modal">
+        <div class="modal-header">
+            <button class="modal-close" onclick="window.closeExplorer()">Cancel</button>
+            <div class="modal-title">File Explorer</div>
+            <div style="width: 40px"></div>
+        </div>
+        <div class="explorer-breadcrumbs" id="explorer-breadcrumbs">
+            <!-- Breadcrumbs injected here -->
+        </div>
+        <div class="file-list" id="explorer-list">
+            <!-- Files injected here -->
+            <div class="loading-overlay" style="position: absolute; display: flex; background: transparent;">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- iOS Onboarding Modal -->
     <div class="onboarding-modal" id="ios-onboarding">
         <div class="onboarding-header">
@@ -1008,6 +1180,11 @@
                     <path
                         d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
                     </path>
+                </svg>
+            </button>
+            <button class="menu-btn" onclick="window.openExplorer()">
+                <svg class="icon-stroke" viewBox="0 0 24 24">
+                    <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path>
                 </svg>
             </button>
             <!-- Menu Button -->
@@ -1175,6 +1352,21 @@
                     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                 </svg>
                 Force Sync
+            </button>
+        </div>
+
+        <div class="drawer-divider"></div>
+
+        <!-- System Section -->
+        <div class="drawer-section">
+            <div class="drawer-section-title">System</div>
+            <button class="drawer-btn" style="color: #ff4444"
+                onclick="if(confirm('Quit Nautic Player?')) { send('quit'); toggleDrawer(); }">
+                <svg class="icon-stroke" viewBox="0 0 24 24" style="color: #ff4444">
+                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                    <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+                Shut Down
             </button>
         </div>
     </div>
@@ -2001,6 +2193,223 @@
                 showInstallPrompt();
             }
         }, 3000);
+
+        let pendingResumePos = 0;
+
+        socket.on('resume-prompt', (state) => {
+            const panel = document.getElementById('resume-panel');
+            if (state.visible) {
+                pendingResumePos = state.position;
+                document.getElementById('resume-text').innerText = formatTime(state.position);
+                panel.classList.add('show');
+                vibrate('medium');
+            } else {
+                panel.classList.remove('show');
+            }
+        });
+
+        window.confirmResume = function () {
+            send('resume', pendingResumePos);
+            document.getElementById('resume-panel').classList.remove('show');
+        }
+
+        window.dismissResume = function () {
+            send('dismiss-resume', null);
+            document.getElementById('resume-panel').classList.remove('show');
+        }
+
+        /* === FILE EXPLORER === */
+
+        // Define variables in global scope but initialize on DOM load if needed
+        let explorerModal, explorerList, explorerBreadcrumbs;
+        let currentPath = '';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            explorerModal = document.getElementById('explorer-modal');
+            explorerList = document.getElementById('explorer-list');
+            explorerBreadcrumbs = document.getElementById('explorer-breadcrumbs');
+            console.log('[Explorer] Initialized elements', { explorerModal, explorerList });
+        });
+
+        // Attach functions to window to ensure visibility to inline event handlers
+        window.openExplorer = async function () {
+            if (!explorerModal) explorerModal = document.getElementById('explorer-modal');
+            if (explorerModal) {
+                explorerModal.classList.add('show');
+
+                // Try to load downloads folder first
+                renderLoading();
+                try {
+                    const res = await fetch('/api/defaults');
+                    const defaults = await res.json();
+                    if (defaults.downloads) {
+                        window.loadPath(defaults.downloads)
+                    } else {
+                        window.loadDrives();
+                    }
+                } catch (e) {
+                    console.error('Failed to defaults:', e);
+                    window.loadDrives();
+                }
+            } else {
+                console.error('Modal not found');
+            }
+        }
+
+        window.closeExplorer = function () {
+            if (explorerModal) explorerModal.classList.remove('show');
+        }
+
+        window.loadDrives = async function () {
+            renderLoading();
+            try {
+                const res = await fetch('/api/drives');
+                const drives = await res.json();
+                console.log('[Explorer] Drives loaded:', drives);
+
+                // Ensure drives is an array
+                const items = Array.isArray(drives) ? drives : [];
+
+                renderItems({
+                    parent: null,
+                    items: items.map(d => ({
+                        name: `${d.name} (${d.description})`,
+                        path: d.name,
+                        isDir: true,
+                        isDrive: true
+                    }))
+                });
+                updateBreadcrumbs(null);
+            } catch (e) {
+                console.error('Failed to load drives:', e);
+                if (explorerList) explorerList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--danger)">Failed to load drives. Check console.</div>';
+            }
+        }
+
+        window.loadPath = async function (path) {
+            console.log('[Explorer] Loading path:', path);
+            renderLoading();
+            try {
+                const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+                renderItems(data);
+                updateBreadcrumbs(data.path);
+                currentPath = data.path;
+            } catch (e) {
+                console.error('Failed to load path:', e);
+                showError('Access denied or invalid path');
+                window.loadDrives(); // Fallback
+            }
+        }
+
+        function renderLoading() {
+            if (explorerList) {
+                explorerList.innerHTML = `
+                    <div style="display: flex; justify-content: center; padding: 40px;">
+                        <div class="spinner"></div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderItems(data) {
+            if (!explorerList) return;
+            let html = '';
+
+            // Add "Up" folder if not root/drives
+            if (data.parent) {
+                // Use data-path attribute to avoid quote escaping hell
+                html += `
+                    <div class="file-item" data-type="dir" data-path="${escapeHtml(data.parent)}">
+                        <svg class="file-icon folder" viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+                        <div class="file-info">
+                            <div class="file-name">..</div>
+                            <div class="file-meta">Parent Directory</div>
+                        </div>
+                    </div>
+                `;
+            } else if (data.parent === null && (!data.items.length || !data.items[0]?.isDrive)) {
+                html += `
+                    <div class="file-item" onclick="window.loadDrives()">
+                        <svg class="file-icon folder" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path></svg>
+                        <div class="file-info">
+                            <div class="file-name">My PC</div>
+                            <div class="file-meta">Drives</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (data.items.length === 0) {
+                html += '<div style="padding: 20px; text-align: center; opacity: 0.5">Empty folder</div>';
+            }
+
+            data.items.forEach(item => {
+                const icon = item.isDir
+                    ? `<svg class="file-icon folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`
+                    : `<svg class="file-icon ${item.isVideo ? 'video' : ''}" viewBox="0 0 24 24"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM6 20V4h5v7h7v9H6z"/></svg>`;
+
+                const type = item.isDir ? 'dir' : 'file';
+                const meta = item.isDir ? 'Folder' : (item.isVideo ? 'Video File' : 'File');
+
+                html += `
+                    <div class="file-item" data-type="${type}" data-path="${escapeHtml(item.path)}">
+                        ${icon}
+                        <div class="file-info">
+                            <div class="file-name">${escapeHtml(item.name)}</div>
+                            <div class="file-meta">${meta}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            explorerList.innerHTML = html;
+
+            // Attach event listeners to new items
+            explorerList.querySelectorAll('.file-item[data-path]').forEach(el => {
+                el.addEventListener('click', () => {
+                    const path = el.getAttribute('data-path');
+                    const type = el.getAttribute('data-type');
+                    if (type === 'dir') {
+                        window.loadPath(path);
+                    } else {
+                        window.openFile(path);
+                    }
+                });
+            });
+        }
+
+        // Helper to escape HTML special chars in attributes
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function updateBreadcrumbs(path) {
+            if (explorerBreadcrumbs) {
+                if (!path) {
+                    explorerBreadcrumbs.innerHTML = '<span class="breadcrumb-item" onclick="window.loadDrives()">My PC</span>';
+                    return;
+                }
+                explorerBreadcrumbs.innerHTML = `
+                    <span class="breadcrumb-item" onclick="window.loadDrives()">My PC</span>
+                    <span class="breadcrumb-sep">/</span>
+                    <span class="breadcrumb-item" style="color: var(--text-dim); cursor: default">${escapeHtml(path)}</span>
+                `;
+            }
+        }
+
+        window.openFile = function (path) {
+            window.closeExplorer();
+            send('loadfile', path);
+        }
+
     </script>
 </body>
 

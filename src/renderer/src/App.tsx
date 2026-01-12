@@ -134,6 +134,13 @@ function App(): JSX.Element {
             setHasLoadedFile(true)
         })
 
+        // Handle remote actions (e.g. resume confirmed on mobile)
+        ipcRenderer.on('remote-action', (_: any, data: { action: string }) => {
+            if (data.action === 'resume-confirmed' || data.action === 'resume-dismissed') {
+                setResumePrompt(null)
+            }
+        })
+
         // Save position when window closes
         const handleBeforeUnload = () => {
             if (currentFileRef.current && currentPositionRef.current > 0) {
@@ -156,6 +163,19 @@ function App(): JSX.Element {
             window.removeEventListener('beforeunload', handleBeforeUnload)
         }
     }, [resumePositions.savePosition, resumePositions.getPosition])
+
+    // Sync resume prompt with remote
+    useEffect(() => {
+        if (resumePrompt) {
+            ipcRenderer.send('sync-resume-state', {
+                visible: true,
+                position: resumePrompt.position,
+                title: resumePrompt.title
+            })
+        } else {
+            ipcRenderer.send('sync-resume-state', { visible: false })
+        }
+    }, [resumePrompt])
 
     // Drag and Drop handlers - Only show overlay for real FILES, not internal drags
     const handleDragOver = (e: DragEvent) => {

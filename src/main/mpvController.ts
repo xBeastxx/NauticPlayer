@@ -4,7 +4,7 @@
  */
 
 import { spawn, ChildProcess } from 'child_process'
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import * as net from 'net'
@@ -18,10 +18,13 @@ const socketPath = `\\\\.\\pipe\\mpvsocket-${process.pid}`
 let mpvInitialized = false // Track if MPV has been initialized
 let commandQueue: Record<string, any>[] = [] // Queue for commands before socket is ready
 
+let globalUiSender: Electron.WebContents | null = null
+
 // Updated signature for BrowserView Architecture
 // hostWindow: The physical window where MPV is embedded (provides WID)
 // uiSender: The WebContents of the BrowserView (where React UI lives)
 export function setupMpvController(hostWindow: BrowserWindow, uiSender: Electron.WebContents): void {
+  globalUiSender = uiSender
   // Prevent multiple initializations
   if (mpvInitialized) {
     console.log('[MPV] Already initialized, skipping...')
@@ -443,7 +446,24 @@ ipcMain.on('remote-command', (_event, action: string, value: any) => {
               // Send full state using new API
               broadcastFullState()
               break;
+          case 'loadfile':
+              console.log('[MPV] Loading file from remote:', value)
+              sendCommand({ command: ['loadfile', value, 'replace'] })
+              break;
+          case 'resume':
+              // value matches the target position
+              sendCommand({ command: ['seek', value, 'absolute', 'exact'] })
+              if (globalUiSender) globalUiSender.send('remote-action', { action: 'resume-confirmed' })
+              break;
+          case 'dismiss-resume':
+              if (globalUiSender) globalUiSender.send('remote-action', { action: 'resume-dismissed' })
+              break;
+          case 'quit':
+              console.log('[MPV] Remote requested shutdown')
+              app.quit()
+              break;
           case 'command': sendCommand({ command: value }); break; 
+          default: console.warn('[MPV] Unknown remote command:', action); break; 
       }
 })
 

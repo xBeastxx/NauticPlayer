@@ -12,7 +12,7 @@ import { join, extname } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { BrowserWindow, ipcMain, app as electronApp } from 'electron'
 import * as fs from 'fs'
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, ChildProcess, exec } from 'child_process'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -246,6 +246,14 @@ function setupSocketHandlers(socket: Socket, uiSender: Electron.WebContents): vo
   socket.on('request-state', () => {
     console.log('[Remote] State requested by client')
     socket.emit('full-state', playerState)
+  })
+
+  // Listen for resume prompt sync from frontend
+  ipcMain.on('sync-resume-state', (_event, state) => {
+      // Broadcast to mobile clients
+      if (io) {
+        io.emit('resume-prompt', state)
+      }
   })
   
   // Handle ping for latency check
@@ -500,12 +508,106 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
     // We rely on "new file loaded" or "stop" command to kill process
   })
 
+
   // Serve HLS files
   app.use('/hls', (req, res, next) => {
     const hlsDir = join(electronApp.getPath('userData'), 'hls-stream')
     // Check if cleaning up? No, express static handles serving
     next()
   }, express.static(join(electronApp.getPath('userData'), 'hls-stream')))
+
+  // API: Get Defaults (Platform Paths)
+  app.get('/api/defaults', (req, res) => {
+    try {
+        res.json({
+            downloads: electronApp.getPath('downloads'),
+            documents: electronApp.getPath('documents'),
+            home: electronApp.getPath('home')
+        })
+    } catch (e) {
+        console.error('[Remote] Failed to get default paths:', e)
+        res.status(500).json({ error: 'Failed' })
+    }
+  })
+
+  // API: List Drives
+  app.get('/api/drives', (req, res) => {
+    // Use PowerShell for reliable JSON output, avoids locale parsing issues
+    const cmd = 'powershell "Get-PSDrive -PSProvider FileSystem | Select-Object Name, Description | ConvertTo-Json"'
+    exec(cmd, (error, stdout, stderr) => {
+      if (error) {
+        console.error('[Remote] Failed to list drives:', error)
+        // Fallback to basic drives if PS fails
+        return res.json([
+            { name: 'C:', description: 'System Drive' },
+            { name: 'D:', description: 'Local Disk' }
+        ])
+      }
+      
+      try {
+        let drives = JSON.parse(stdout)
+        // If only one drive, PS returns an object, not array
+        if (!Array.isArray(drives)) {
+            drives = [drives]
+        }
+        res.json(drives.map((d: { Name: string; Description: any }) => ({
+            name: d.Name + ':', // PS returns "C", we want "C:"
+            description: d.Description || 'Local Disk'
+        })))
+      } catch (e) {
+        console.error('[Remote] Failed to parse drive headers:', e)
+        res.status(500).json({ error: 'Failed to parse drives' })
+      }
+    })
+  })
+
+  // API: List Files
+  app.get('/api/files', (req, res) => {
+    const dirPath = req.query.path as string
+    
+    if (!dirPath) {
+      return res.status(400).json({ error: 'Path is required' })
+    }
+
+    // Security check? For now, we allow full access as it's a remote admin tool
+    
+    try {
+      if (!fs.existsSync(dirPath)) {
+        return res.status(404).json({ error: 'Path not found' })
+      }
+
+      const parent = join(dirPath, '..')
+      const items = fs.readdirSync(dirPath, { withFileTypes: true })
+        .map(dirent => {
+          // Skip hidden/system files if starts with . or $
+          if (dirent.name.startsWith('.') || dirent.name.startsWith('$') || dirent.name === 'System Volume Information') return null
+          
+          return {
+            name: dirent.name,
+            path: join(dirPath, dirent.name),
+            isDir: dirent.isDirectory(),
+            // Simple extension check for video files
+            isVideo: !dirent.isDirectory() && ALL_VIDEO_FORMATS.includes(extname(dirent.name).toLowerCase())
+          }
+        })
+        .filter(item => item !== null)
+        .sort((a, b) => {
+          if (a.isDir && !b.isDir) return -1
+          if (!a.isDir && b.isDir) return 1
+          return a.name.localeCompare(b.name)
+        })
+        
+      res.json({
+        path: dirPath,
+        parent: parent === dirPath ? null : parent,
+        items
+      })
+    } catch (e) {
+      console.error('[Remote] Read dir error:', e)
+      res.status(500).json({ error: 'Failed to read directory' })
+    }
+  })
+
 
   // Socket.io connection handler
   io.on('connection', (socket) => {
