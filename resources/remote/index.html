@@ -1719,16 +1719,20 @@
 
         function showAppClosedUI() {
             document.body.innerHTML = `
-                <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; background:#050505; color:white; text-align:center; padding:20px;">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" style="margin-bottom:20px;">
-                        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-                        <line x1="12" y1="2" x2="12" y2="12"></line>
-                    </svg>
-                    <h2 style="margin:0 0 10px 0;">App Closed</h2>
-                    <p style="color:rgba(255,255,255,0.6); margin:0;">NauticPlayer has been shut down.</p>
-                    <button onclick="window.close()" style="margin-top:30px; background:#252525; border:none; color:white; padding:12px 24px; border-radius:8px; font-weight:600;">Close Window</button>
+                <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; background:var(--bg); color:var(--text); text-align:center; padding:20px; font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;">
+                    <div style="width:80px; height:80px; background:rgba(239, 68, 68, 0.1); border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:24px;">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                            <line x1="12" y1="2" x2="12" y2="12"></line>
+                        </svg>
+                    </div>
+                    <h2 style="margin:0 0 12px 0; font-size:24px; font-weight:700;">App Closed</h2>
+                    <p style="color:var(--text-dim); margin:0; line-height:1.5; font-size:15px;">NauticPlayer has been shut down.<br>You can safely close this tab.</p>
                 </div>
             `;
+
+            // Attempt to close silently just in case supported
+            try { window.close(); } catch (e) { }
         }
 
         // ============================================
