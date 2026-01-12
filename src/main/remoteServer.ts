@@ -10,7 +10,7 @@ import os from 'os'
 import dgram from 'dgram'
 import { join, extname } from 'path'
 import { is } from '@electron-toolkit/utils'
-import { BrowserWindow, ipcMain, app as electronApp } from 'electron'
+import { ipcMain, BrowserWindow, app as electronApp } from 'electron'
 import * as fs from 'fs'
 import { spawn, ChildProcess, exec } from 'child_process'
 
@@ -222,6 +222,9 @@ export async function resolveBestIps(): Promise<string[]> {
 // ============================================================================
 
 function setupSocketHandlers(socket: Socket, uiSender: Electron.WebContents): void {
+  // Wake the app window when a client connects
+  ipcMain.emit('remote-wake')
+
   console.log('[Remote] Client connected:', socket.id)
   connectedClients++
   
@@ -259,6 +262,32 @@ function setupSocketHandlers(socket: Socket, uiSender: Electron.WebContents): vo
   // Handle ping for latency check
   socket.on('ping-remote', (timestamp: number) => {
     socket.emit('pong-remote', timestamp)
+  })
+
+
+  // System Settings Handlers
+  socket.on('get-sys-info', () => {
+    const loginSettings = electronApp.getLoginItemSettings()
+    socket.emit('sys-info', { 
+      autoLaunch: loginSettings.openAtLogin,
+      version: electronApp.getVersion() 
+    })
+  })
+
+  socket.on('toggle-autolaunch', (enable: boolean) => {
+    electronApp.setLoginItemSettings({
+      openAtLogin: enable,
+      openAsHidden: enable, // Start minimized if auto-launching
+      path: process.execPath,
+      args: ['--hidden']
+    })
+    
+    // Check if applied
+    const newSettings = electronApp.getLoginItemSettings()
+    socket.emit('sys-info', { 
+      autoLaunch: newSettings.openAtLogin,
+      version: electronApp.getVersion()
+    })
   })
   
   // Handle disconnect

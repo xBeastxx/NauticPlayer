@@ -92,18 +92,20 @@ Whether you're watching local files or streaming content from the web, NauticPla
 - Silent background updates with user notification
 - Always stay up-to-date with the latest features
 
-###  **Nautic Remote & Mobile Experience**
+###  **Nautic Remote 2.0** (New!)
 - **Watch on Phone**: Stream any video from your PC to your mobile device instantly
-- **Real-Time Transcoding**: Automatic HLS transcoding for MKV, AVI, and other formats incompatible with mobile browsers
-- **Progressive Web App (PWA)**: Install Nautic Remote as a native app on Android and iOS
-- **Full Remote Control**: Control playback, volume, seeking, and tracks with zero latency via WebSockets
-- **Smart Sync**: Real-time state synchronization between desktop and mobile
+- **Real-Time Transcoding**: Automatic HLS transcoding (`.mzw`, `.avi` etc.) ensures smooth playback on any mobile browser
+- **Remote File Explorer**: Browse PC drives and folders directly from your phone
+- **Cross-Device Resume**: Start watching on PC, tap "Resume" on mobile to continue exactly where you left off
+- **System Control**: Remotely shut down the app or wake it from the tray
+- **Progressive Web App (PWA)**: Install as a native app on iOS and Android for a fullscreen experience
+- **Zero Latency Control**: Instant sync for play/pause, seek, volume, and track selection
 
 ---
 
 ##  Screenshots
 
-> *Coming soon - Add your screenshots here!*
+> *Coming soon!*
 
 ---
 

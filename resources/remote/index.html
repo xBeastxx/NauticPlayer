@@ -399,6 +399,52 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(16px);
+        }
+
         .drawer-btn svg {
             width: 18px;
             height: 18px;
@@ -1360,14 +1406,22 @@
         <!-- System Section -->
         <div class="drawer-section">
             <div class="drawer-section-title">System</div>
-            <button class="drawer-btn" style="color: #ff4444"
-                onclick="if(confirm('Quit Nautic Player?')) { send('quit'); toggleDrawer(); }">
+            <button class="drawer-btn" style="color: #ff4444" onclick="quitApp()">
                 <svg class="icon-stroke" viewBox="0 0 24 24" style="color: #ff4444">
                     <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
                     <line x1="12" y1="2" x2="12" y2="12"></line>
                 </svg>
                 Shut Down
             </button>
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; margin-bottom: 4px;">
+                <span style="font-weight: 500; font-size: 13px; color: var(--text-dim);">Start with Windows</span>
+                <label class="switch">
+                    <input type="checkbox" id="autolaunch-toggle" onchange="toggleAutoLaunch(this.checked)">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+
         </div>
     </div>
 
@@ -1412,6 +1466,7 @@
         let socket = null;
         let isConnected = false;
         let reconnectAttempts = 0;
+        let isQuitting = false;
         const MAX_RECONNECT_ATTEMPTS = 10;
 
         // Player state
@@ -1577,11 +1632,16 @@
 
                 // Request initial state
                 socket.emit('request-state');
+                socket.emit('get-sys-info');
             });
 
             socket.on('disconnect', (reason) => {
                 console.log('[Remote] Disconnected:', reason);
                 isConnected = false;
+                if (isQuitting) {
+                    showAppClosedUI();
+                    return;
+                }
                 updateConnectionUI('disconnected');
             });
 
@@ -1617,6 +1677,14 @@
                 console.log('[Remote] Status:', data);
             });
 
+            // System Info
+            socket.on('sys-info', (data) => {
+                const toggle = document.getElementById('autolaunch-toggle');
+                if (toggle) toggle.checked = data.autoLaunch;
+            });
+
+
+
             // Stream availability for Watch on Phone
             socket.on('stream-available', (data) => {
                 console.log('[Remote] Stream available:', data);
@@ -1647,6 +1715,20 @@
                     elReconnectBanner.textContent = 'Connection lost. Tap to retry.';
                     break;
             }
+        }
+
+        function showAppClosedUI() {
+            document.body.innerHTML = `
+                <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; background:#050505; color:white; text-align:center; padding:20px;">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" style="margin-bottom:20px;">
+                        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                        <line x1="12" y1="2" x2="12" y2="12"></line>
+                    </svg>
+                    <h2 style="margin:0 0 10px 0;">App Closed</h2>
+                    <p style="color:rgba(255,255,255,0.6); margin:0;">NauticPlayer has been shut down.</p>
+                    <button onclick="window.close()" style="margin-top:30px; background:#252525; border:none; color:white; padding:12px 24px; border-radius:8px; font-weight:600;">Close Window</button>
+                </div>
+            `;
         }
 
         // ============================================
@@ -1717,6 +1799,32 @@
         // ============================================
         // COMMANDS
         // ============================================
+        function quitApp() {
+            if (confirm('Quit NauticPlayer?')) {
+                vibrate('medium');
+                isQuitting = true;
+                // Send quit command
+                if (socket && isConnected) {
+                    socket.emit('cmd', { action: 'quit' });
+                }
+
+                // Show closed UI immediately
+                showAppClosedUI();
+
+                // Disconnect socket to prevent reconnection attempts
+                if (socket) {
+                    socket.disconnect();
+                }
+
+                // Try to close window (might be blocked by browser)
+                try {
+                    window.close();
+                } catch (e) {
+                    // Ignore
+                }
+            }
+        }
+
         function send(action, value) {
             vibrate();
             if (socket && isConnected) {
@@ -1731,6 +1839,15 @@
             }
             toggleDrawer();
         }
+
+        function toggleAutoLaunch(checked) {
+            vibrate('light');
+            if (socket && isConnected) {
+                socket.emit('toggle-autolaunch', checked);
+            }
+        }
+
+
 
         // ============================================
         // DRAWER
@@ -1790,7 +1907,7 @@
         // ============================================
         let streamAvailable = false;
 
-        async function openWatchMode() {
+        async function openWatchMode(forceTranscode = false) {
             vibrate('medium');
 
             const watchMode = document.getElementById('watch-mode');
@@ -1800,11 +1917,11 @@
 
             // Show watch mode with loading spinner
             watchMode.classList.add('show');
-            watchTitle.textContent = 'Loading...';
+            watchTitle.textContent = forceTranscode ? 'Preparing Transcode...' : 'Loading...';
             watchContainer.innerHTML = `
                 <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%;">
                     <div class="spinner"></div>
-                    <p style="margin-top:16px; color:rgba(255,255,255,0.6);">Connecting to stream...</p>
+                    <p style="margin-top:16px; color:rgba(255,255,255,0.6);">${forceTranscode ? 'Starting Transcoder...' : 'Connecting to stream...'}</p>
                 </div>
             `;
 
@@ -1820,9 +1937,6 @@
                         <div class="watch-error">
                             <h3>Cannot Stream</h3>
                             <p>${info.error || 'This format is not supported.'}</p>
-                            <p style="font-size:12px; margin-top:16px; opacity:0.6">
-                                Format: ${info.format || 'Unknown'}
-                            </p>
                         </div>
                     `;
                     return;
@@ -1832,7 +1946,7 @@
                 watchTitle.textContent = info.filename;
 
                 // Add transcoding indicator if needed
-                const isTranscoding = info.needsTranscode;
+                const isTranscoding = info.needsTranscode || forceTranscode;
                 if (isTranscoding) {
                     watchTitle.textContent = info.filename + ' (Transcoding...)';
                 }
@@ -1841,7 +1955,6 @@
 
                 const video = document.getElementById('watch-video');
 
-                // Use appropriate endpoint based on format
                 // Use appropriate endpoint based on format
                 if (isTranscoding) {
                     const startTime = Math.floor(info.currentTime || 0);
@@ -1864,7 +1977,6 @@
                                 hls.attachMedia(video);
                                 hls.on(Hls.Events.MANIFEST_PARSED, () => {
                                     video.play().catch(e => console.warn('Auto-play blocked:', e));
-                                    watchTitle.textContent = info.filename;
                                 });
                                 // Keep reference to destroy later
                                 video.hls = hls;
@@ -1875,7 +1987,6 @@
                                 video.src = data.url;
                                 video.addEventListener('loadedmetadata', () => {
                                     video.play().catch(e => console.warn('Auto-play blocked:', e));
-                                    watchTitle.textContent = info.filename;
                                 });
                             } else {
                                 throw new Error('HLS not supported on this browser');
@@ -1883,7 +1994,12 @@
                         })
                         .catch(err => {
                             console.error('Transcoding setup error:', err);
-                            showError(`Transcoding Error: ${err.message}`);
+                            watchContainer.innerHTML = `
+                                <div class="watch-error">
+                                    <h3>Transcoding Error</h3>
+                                    <p>${err.message}</p>
+                                </div>
+                            `;
                         });
                 } else {
                     // Native format - direct stream with seeking
@@ -1906,27 +2022,26 @@
                     let errorMsg = 'Unknown error';
                     if (mediaError) {
                         switch (mediaError.code) {
-                            case MediaError.MEDIA_ERR_ABORTED:
-                                errorMsg = 'Playback aborted by user';
-                                break;
-                            case MediaError.MEDIA_ERR_NETWORK:
-                                errorMsg = 'Network error';
-                                break;
-                            case MediaError.MEDIA_ERR_DECODE:
-                                errorMsg = 'Decode error - format not supported';
-                                break;
-                            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                                errorMsg = 'Source not supported';
-                                break;
+                            case MediaError.MEDIA_ERR_ABORTED: errorMsg = 'Playback aborted'; break;
+                            case MediaError.MEDIA_ERR_NETWORK: errorMsg = 'Network error'; break;
+                            case MediaError.MEDIA_ERR_DECODE: errorMsg = 'Format not supported (Decode Error)'; break;
+                            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: errorMsg = 'Format not supported'; break;
                         }
-                        errorMsg += ': ' + (mediaError.message || 'No details');
                     }
                     console.error('Video error:', errorMsg, mediaError);
+
+                    // Offer transcoding fallback
                     watchContainer.innerHTML = `
                         <div class="watch-error">
                             <h3>Playback Error</h3>
                             <p>${errorMsg}</p>
-                            <p style="font-size:11px; margin-top:12px; opacity:0.5;">Check console for details</p>
+                            <p style="font-size:12px; margin:8px 0; opacity:0.7">
+                                This file type (MP4/MKV) might use a codec not supported by your mobile browser.
+                            </p>
+                            <button class="drawer-btn" style="margin-top:16px; background:var(--primary); color:#000" onclick="openWatchMode(true)">
+                                <svg class="icon-stroke" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                                Try Transcoding
+                            </button>
                         </div>
                     `;
                 });

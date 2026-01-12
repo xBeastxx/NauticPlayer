@@ -7,6 +7,7 @@ import { setupMpvController, setupIpcHandlers, updateYtdl, sendCommand } from '.
 import { startRemoteServer, resolveBestIps } from './remoteServer'
 import { setupSubtitleController } from './subtitleController'
 import { logger } from './lib/logger'
+import { getPreference, savePreference } from './lib/preferences'
 
 // Configure Auto Updater
 autoUpdater.autoDownload = true
@@ -54,8 +55,16 @@ function createWindow(): void {
     if (!mainWindow) return
     
     logger.log('[MAIN] Window ready-to-show')
-    mainWindow.show()
-    mainWindow.focus()
+    
+    // Check for auto-launch hidden flag
+    const startHidden = process.argv.includes('--hidden')
+    if (startHidden) {
+        logger.log('[MAIN] Starting in HIDDEN mode (Auto-Launch)')
+        // Don't show or focus
+    } else {
+        mainWindow.show()
+        mainWindow.focus()
+    }
     // Sync UI with Window State
     mainWindow.on('maximize', () => mainWindow?.webContents.send('window-maximized'))
     mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window-unmaximized'))
@@ -252,6 +261,22 @@ app.whenReady().then(() => {
   logger.log('[APP] Electron app is ready')
   electronApp.setAppUserModelId('com.electron') // Fixed ID
 
+  // Default Auto-Launch on First Run
+  if (!getPreference('initialSetupComplete')) {
+      logger.log('[MAIN] First Run: Enabling Auto-Launch by default')
+      try {
+          app.setLoginItemSettings({
+              openAtLogin: true,
+              openAsHidden: true,
+              path: process.execPath,
+              args: ['--hidden']
+          })
+          savePreference('initialSetupComplete', true)
+      } catch (e) {
+          logger.error('[MAIN] Failed to set auto-launch:', e)
+      }
+  }
+
   app.on('browser-window-created', (_, window) => {
       // No DevTools auto-open
       optimizer.watchWindowShortcuts(window)
@@ -283,6 +308,19 @@ app.whenReady().then(() => {
 
   createWindow()
 
+  // Create Tray
+  const tray = createTray(mainWindow!)
+  
+  // Handle wake-on-connect from remote server
+  ipcMain.on('remote-wake', () => {
+      logger.log('[MAIN] Received Wake Signal from Remote')
+      if (mainWindow) {
+          if (mainWindow.isMinimized()) mainWindow.restore()
+          mainWindow.show()
+          mainWindow.focus()
+      }
+  })
+
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -291,8 +329,55 @@ app.whenReady().then(() => {
 process.on('uncaughtException', (error) => {
   logger.error('[PROCESS] Uncaught:', { message: error.message })
 })
+
+// Quit when all windows are closed, except on macOS. 
+// OR if we want to keep running in tray on Windows/Linux too.
 process.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
+  if (process.platform !== 'darwin' && !isQuitting) {
+     // If not explicit quit, do nothing (keep app running in tray if desired)
+     // BUT current requirement is "keep in tray".
+     // If user closes window, we usually hide it.
+     // If window-all-closed fires, it means we destroyed the window.
+     // We should prevent window destruction on close instead.
+  } else {
+     app.quit()
   }
 })
+
+// --- TRAY LOGIC ---
+import { Tray, Menu, nativeImage } from 'electron'
+let tray: Tray | null = null
+let isQuitting = false
+
+function createTray(win: BrowserWindow): Tray {
+    const appIcon = nativeImage.createFromPath(icon)
+    const trayInstance = new Tray(appIcon)
+    
+    const contextMenu = Menu.buildFromTemplate([
+        { label: 'Show Player', click: () => win.show() },
+        { type: 'separator' },
+        { label: 'Quit', click: () => {
+            isQuitting = true
+            app.quit()
+        }}
+    ])
+    
+    trayInstance.setToolTip('NauticPlayer')
+    trayInstance.setContextMenu(contextMenu)
+    
+    trayInstance.on('double-click', () => {
+        win.show()
+    })
+
+    // Handle Window Close (Minimize to Tray)
+    win.on('close', (event) => {
+        if (!isQuitting) {
+            event.preventDefault()
+            win.hide()
+            return false
+        }
+        return true
+    })
+
+    return trayInstance
+}

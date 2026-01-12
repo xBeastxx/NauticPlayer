@@ -132,7 +132,9 @@ function connectToMpvSocket(uiSender: Electron.WebContents, hostWindow: BrowserW
     sendCommand({ command: ['observe_property', 10, 'filename'] })
     sendCommand({ command: ['observe_property', 11, 'aid'] })
     sendCommand({ command: ['observe_property', 12, 'sid'] })
+    sendCommand({ command: ['observe_property', 12, 'sid'] })
     sendCommand({ command: ['observe_property', 13, 'mute'] })
+    sendCommand({ command: ['observe_property', 14, 'path'] })
 
     if (commandQueue.length > 0) {
         commandQueue.forEach(cmd => sendCommand(cmd))
@@ -225,6 +227,9 @@ function handleMpvMessage(msg: any, uiSender: Electron.WebContents, hostWindow: 
       case 'filename':
         uiSender.send('mpv-filename', msg.data)
         updatePlayerState({ filename: msg.data })
+        break
+      case 'path':
+        setCurrentFile(msg.data)
         break
     }
   }
