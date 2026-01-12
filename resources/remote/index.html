@@ -1209,15 +1209,25 @@
 
     <!-- Header -->
     <div class="header">
-        <!-- Watch on Phone (Left) -->
-        <button class="menu-btn" onclick="openWatchMode(); vibrate('medium');" title="Watch on Phone">
-            <svg class="icon-stroke" viewBox="0 0 24 24">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-            </svg>
-        </button>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <!-- Watch on Phone (Left) -->
+            <button class="menu-btn" onclick="openWatchMode(); vibrate('medium');" title="Watch on Phone">
+                <svg class="icon-stroke" viewBox="0 0 24 24">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+            </button>
+            <!-- File Explorer (Moved Left) -->
+            <button class="menu-btn" onclick="window.openExplorer()">
+                <svg class="icon-stroke" viewBox="0 0 24 24">
+                    <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path>
+                </svg>
+            </button>
+        </div>
+
         <div class="logo">NAUTIC REMOTE</div>
+
         <div style="display:flex; gap:8px; align-items:center;">
             <!-- PC Fullscreen Toggle (Quick Access) -->
             <button class="menu-btn" onclick="send('toggle-fullscreen'); vibrate('medium');"
@@ -1226,11 +1236,6 @@
                     <path
                         d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3">
                     </path>
-                </svg>
-            </button>
-            <button class="menu-btn" onclick="window.openExplorer()">
-                <svg class="icon-stroke" viewBox="0 0 24 24">
-                    <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z"></path>
                 </svg>
             </button>
             <!-- Menu Button -->
@@ -1247,7 +1252,7 @@
     <!-- Main Content -->
     <div class="main-info">
         <div class="file-title" id="title">Connecting...</div>
-        <img src="/icon.ico" alt="Nautic" style="width:80px; height:80px; margin:16px 0;">
+        <img src="/icon.ico" alt="Nautic" style="width:140px; height:140px; margin:24px 0;">
         <div class="time-badge" id="time">--:--</div>
     </div>
 
