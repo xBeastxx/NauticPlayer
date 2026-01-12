@@ -269,6 +269,10 @@ Special thanks to the incredible open-source projects that make NauticPlayer pos
 - [Electron](https://www.electronjs.org/) - Building cross-platform apps
 - [React](https://react.dev/) - Modern UI development
 
+### Important Collaborators
+
+- **Ivan Manso** - "Vibes Manager"
+
 ---
 
 ##  Support & Contact

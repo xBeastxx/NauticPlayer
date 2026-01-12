@@ -3,6 +3,12 @@
   "version": "1.0.2",
   "description": "A modern media player for Windows",
   "author": "NauticGames",
+  "contributors": [
+    {
+      "name": "Ivan Manso",
+      "email": "proyecto.digitales.work@gmail.com"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/xBeastxx/NauticPlayer.git"
