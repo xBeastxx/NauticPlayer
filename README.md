@@ -5,7 +5,7 @@
 <h1 align="center">NauticPlayer</h1>
 
 <p align="center">
-  <strong>A Premium, Modern Media Player for Windows</strong>
+  <strong>The Ultimate Modern Media Player for Windows | MPV Frontend | 4K HDR & Streaming</strong>
 </p>
 
 <p align="center">
@@ -15,8 +15,11 @@
   <a href="https://github.com/xBeastxx/NauticPlayer/releases">
     <img src="https://img.shields.io/github/downloads/xBeastxx/NauticPlayer/total?style=for-the-badge&logo=github&color=green" alt="Total Downloads">
   </a>
-  <a href="https://github.com/xBeastxx/NauticPlayer/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-Proprietary-orange?style=for-the-badge" alt="License">
+  <a href="https://github.com/xBeastxx/NauticPlayer/stargazers">
+    <img src="https://img.shields.io/github/stars/xBeastxx/NauticPlayer?style=for-the-badge&logo=github&color=yellow" alt="GitHub Stars">
+  </a>
+  <a href="https://github.com/xBeastxx/NauticPlayer/commits/main">
+    <img src="https://img.shields.io/github/last-commit/xBeastxx/NauticPlayer?style=for-the-badge&logo=git&color=red" alt="Last Activity">
   </a>
   <a href="https://deepwiki.com/xBeastxx/NauticPlayer">
     <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
@@ -34,11 +37,11 @@
 
 ---
 
-##  About
+## ⚡ About NauticPlayer
 
-**NauticPlayer** is a sleek, high-performance media player designed for Windows users who demand both aesthetics and power. Built with modern web technologies and powered by the legendary **MPV** media engine, NauticPlayer delivers a fluid, borderless viewing experience with crystal-clear video playback.
+**NauticPlayer** is a **next-generation media player for Windows 10 & 11**, engineered for users who refuse to compromise between aesthetics and performance. As a powerful **MPV Frontend**, it combines the legendary playback quality of `libmpv` with a stunning, modern **Glassmorphism UI**.
 
-Whether you're watching local files or streaming content from the web, NauticPlayer provides a seamless, distraction-free experience with its elegant glassmorphism UI design.
+Whether you need a **4K HDR Video Player**, a seamless **IPTV Streamer**, or a tool to **Watch Videos from URL**, NauticPlayer delivers a fluid, borderless, and distraction-free experience. It supports virtually all formats (MKV, MP4, HEVC, AVI) and includes advanced features like **Real-Time Shaders**, **Smartphone Remote Control**, and **Anime4K Upscaling**.
 
 ---
 
