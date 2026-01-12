@@ -103,6 +103,17 @@ export function updatePlayerState(updates: Partial<PlayerState>): void {
 }
 
 /**
+ * Send shutdown confirmation to connected clients
+ * This allows the client to wait until the player actually closes before disconnecting
+ */
+export function sendShutdownAck(): void {
+  if (io) {
+    console.log('[Remote] Sending shutdown ACKnowledgment to clients')
+    io.emit('shutdown-confirmed')
+  }
+}
+
+/**
  * Get current player state (for initial sync)
  */
 export function getPlayerState(): PlayerState {
@@ -138,20 +149,36 @@ export function setCurrentFile(filePath: string | null): void {
     transcodeProcess.kill()
     transcodeProcess = null
   }
+
+  // If clearing file, reset player state to empty/stopped
+  if (filePath === null) {
+      updatePlayerState({
+          filename: '',
+          time: 0,
+          duration: 0,
+          paused: true,
+          tracks: []
+      })
+  }
   
   // Notify clients that streaming is available
-  if (io && filePath) {
-    const ext = extname(filePath).toLowerCase()
-    const isNativePlayable = BROWSER_PLAYABLE.includes(ext)
-    const canTranscode = ALL_VIDEO_FORMATS.includes(ext)
-    
-    io.emit('stream-available', { 
-      available: isNativePlayable || canTranscode,
-      native: isNativePlayable,
-      needsTranscode: !isNativePlayable && canTranscode,
-      filename: playerState.filename,
-      format: ext.replace('.', '').toUpperCase()
-    })
+  if (io) {
+    if (filePath) {
+        const ext = extname(filePath).toLowerCase()
+        const isNativePlayable = BROWSER_PLAYABLE.includes(ext)
+        const canTranscode = ALL_VIDEO_FORMATS.includes(ext)
+        
+        io.emit('stream-available', { 
+        available: isNativePlayable || canTranscode,
+        native: isNativePlayable,
+        needsTranscode: !isNativePlayable && canTranscode,
+        filename: playerState.filename,
+        format: ext.replace('.', '').toUpperCase()
+        })
+    } else {
+        // Not available
+        io.emit('stream-available', { available: false, native: false, needsTranscode: false })
+    }
   }
 }
 
@@ -235,6 +262,15 @@ function setupSocketHandlers(socket: Socket, uiSender: Electron.WebContents): vo
   // Send full state immediately on connection
   socket.emit('full-state', playerState)
   socket.emit('status', { connected: true, deviceName: playerState.deviceName })
+
+  // Handle remote commands
+  socket.on('remote-command', (data: { action: string, value?: any }) => {
+    console.log(`[Remote] Raw Command Received:`, JSON.stringify(data))
+    
+    // Broadcast to MPV controller via IPC
+    // We send this to the main process logic which then talks to MPV
+    electronApp.emit('remote-command', data)
+  })
   
   // Handle commands from mobile
   socket.on('cmd', (data: { action: string; value?: any }) => {
@@ -252,12 +288,7 @@ function setupSocketHandlers(socket: Socket, uiSender: Electron.WebContents): vo
   })
 
   // Listen for resume prompt sync from frontend
-  ipcMain.on('sync-resume-state', (_event, state) => {
-      // Broadcast to mobile clients
-      if (io) {
-        io.emit('resume-prompt', state)
-      }
-  })
+
   
   // Handle ping for latency check
   socket.on('ping-remote', (timestamp: number) => {
@@ -325,6 +356,15 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
     pingInterval: 10000,
     // Important: allow EIO3 for older clients
     allowEIO3: true
+  })
+
+  // Listen for resume prompt sync from frontend (Moved here to avoid duplicate listeners)
+  ipcMain.removeAllListeners('sync-resume-state')
+  ipcMain.on('sync-resume-state', (_event, state) => {
+      // Broadcast to mobile clients
+      if (io) {
+        io.emit('resume-prompt', state)
+      }
   })
 
   // Serve static files for remote webapp

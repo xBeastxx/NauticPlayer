@@ -8,7 +8,7 @@ import { ipcMain, BrowserWindow, app } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import * as net from 'net'
-import { getIsFullScreen } from './index'
+import { getIsFullScreen, setQuitting } from './index'
 import { isYouTubeUrl, extractYouTubeMetadata, isYouTubePlaylist, extractYouTubePlaylist } from './lib/historyService'
 import { updatePlayerState, getPlayerState, broadcastFullState, setCurrentFile } from './remoteServer'
 
@@ -18,13 +18,16 @@ const socketPath = `\\\\.\\pipe\\mpvsocket-${process.pid}`
 let mpvInitialized = false // Track if MPV has been initialized
 let commandQueue: Record<string, any>[] = [] // Queue for commands before socket is ready
 
+
 let globalUiSender: Electron.WebContents | null = null
+let globalHostWindow: BrowserWindow | null = null
 
 // Updated signature for BrowserView Architecture
 // hostWindow: The physical window where MPV is embedded (provides WID)
 // uiSender: The WebContents of the BrowserView (where React UI lives)
 export function setupMpvController(hostWindow: BrowserWindow, uiSender: Electron.WebContents): void {
   globalUiSender = uiSender
+  globalHostWindow = hostWindow
   // Prevent multiple initializations
   if (mpvInitialized) {
     console.log('[MPV] Already initialized, skipping...')
@@ -464,8 +467,32 @@ ipcMain.on('remote-command', (_event, action: string, value: any) => {
               if (globalUiSender) globalUiSender.send('remote-action', { action: 'resume-dismissed' })
               break;
           case 'quit':
-              console.log('[MPV] Remote requested shutdown')
-              app.quit()
+              console.log('[MPV] [DEBUG] Remote requested shutdown (Minimize to Tray)')
+              
+              // Stop MPV playback
+              console.log('[MPV] [DEBUG] Stopping playback...')
+              sendCommand({ command: ['stop'] })
+              
+              // Hide window (Minimize to Tray)
+              if (globalHostWindow) {
+                  const isDestroyed = globalHostWindow.isDestroyed()
+                  console.log(`[MPV] [DEBUG] Hiding window. ID: ${globalHostWindow.id}, Destroyed: ${isDestroyed}, Visible: ${isDestroyed ? 'N/A' : globalHostWindow.isVisible()}`)
+                  
+                  if (!isDestroyed) {
+                      // We use close() instead of hide() because close() triggers the 'close' event handler in index.ts
+                      // which contains the crucial logic for:
+                      // 1. Resetting app state (reset-app-state)
+                      // 2. Clearing current file
+                      // 3. Suppressing immediate remote wake
+                      // 4. Preventing actual quit (preventDefault) and minimizing to tray instead
+                      globalHostWindow.close()
+                      console.log('[MPV] [DEBUG] Window close() call sent (should trigger tray minimize).')
+                  } else {
+                      console.error('[MPV] [ERROR] Window is destroyed! Cannot hide.')
+                  }
+              } else {
+                  console.error('[MPV] [ERROR] globalHostWindow is NULL!')
+              }
               break;
           case 'command': sendCommand({ command: value }); break; 
           default: console.warn('[MPV] Unknown remote command:', action); break; 

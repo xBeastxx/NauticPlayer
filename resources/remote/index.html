@@ -1688,6 +1688,13 @@
                 if (toggle) toggle.checked = data.autoLaunch;
             });
 
+            // Shutdown Handshake Confirmation
+            socket.on('shutdown-confirmed', () => {
+                console.log('[Remote] Shutdown Confirmed by Server');
+                showAppClosedUI();
+                if (socket) socket.disconnect();
+            });
+
 
 
             // Stream availability for Watch on Phone
@@ -1812,25 +1819,22 @@
             if (confirm('Quit NauticPlayer?')) {
                 vibrate('medium');
                 isQuitting = true;
+
+                // Show waiting UI
+                elStatusDot.classList.add('connecting');
+                elStatusText.textContent = 'Shutting down PC...';
+
                 // Send quit command
                 if (socket && isConnected) {
                     socket.emit('cmd', { action: 'quit' });
                 }
 
-                // Show closed UI immediately
-                showAppClosedUI();
-
-                // Disconnect socket to prevent reconnection attempts
-                if (socket) {
-                    socket.disconnect();
-                }
-
-                // Try to close window (might be blocked by browser)
-                try {
-                    window.close();
-                } catch (e) {
-                    // Ignore
-                }
+                // We DO NOT disconnect here anymore.
+                // We wait for 'shutdown-confirmed' event from server.
+                // Fallback timeout in case server dies before sending ack:
+                setTimeout(() => {
+                    if (isQuitting) showAppClosedUI();
+                }, 3000);
             }
         }
 

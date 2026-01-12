@@ -15,16 +15,18 @@ const { ipcRenderer } = (window as any).require('electron')
 function App(): JSX.Element {
     const [isMaximized, setIsMaximized] = useState(false)
     const [isDragOver, setIsDragOver] = useState(false)
-    const [hasStarted, setHasLoadedFile] = useState(false)
+    const [hasLoadedFile, setHasLoadedFile] = useState(false)
     const [toastMsg, setToastMsg] = useState('')
-    const [filename, setFilename] = useState('')
-
-    // Smart Resume
-    const resumePositions = useResumePositions()
+    const [filename, setFilename] = useState<string>('')
+    const [currentTime, setCurrentTime] = useState(0) // Added for UI reset
+    const [duration, setDuration] = useState(0) // Added for UI reset
     const [resumePrompt, setResumePrompt] = useState<{ key: string, position: number, title: string } | null>(null)
     const currentFileRef = useRef<string>('')
     const currentPositionRef = useRef<number>(0)
     const currentDurationRef = useRef<number>(0)
+
+    // Smart Resume
+    const resumePositions = useResumePositions()
 
     const [showRemote, setShowRemote] = useState(false)
     const [remoteConnected, setRemoteConnected] = useState(false)
@@ -39,19 +41,19 @@ function App(): JSX.Element {
     useEffect(() => {
         const handleMaximize = () => setIsMaximized(true)
         const handleUnmaximize = () => setIsMaximized(false)
-        const onMpvDuration = () => setHasLoadedFile(true)
+        const onMpvDuration = (_: any, dur: number) => {
+            if (dur && dur > 0) setHasLoadedFile(true)
+        }
 
 
 
         ipcRenderer.on('window-maximized', handleMaximize)
         ipcRenderer.on('window-unmaximized', handleUnmaximize)
-        ipcRenderer.on('mpv-duration', onMpvDuration)
 
 
         return () => {
             ipcRenderer.removeListener('window-maximized', handleMaximize)
             ipcRenderer.removeListener('window-unmaximized', handleUnmaximize)
-            ipcRenderer.removeListener('mpv-duration', onMpvDuration)
 
         }
     }, [])
@@ -66,21 +68,30 @@ function App(): JSX.Element {
 
         // Track time position for Smart Resume
         const onMpvTime = (_: any, time: number) => {
+            // Only update time if a file is actually loaded
+            if (!currentFileRef.current) return
+
             currentPositionRef.current = time
+            setCurrentTime(time) // Keep UI in sync
         }
         ipcRenderer.on('mpv-time', onMpvTime)
 
-        // Track duration for Smart Resume
+        // Track duration for Smart Resume AND App State
         const onMpvDurationForResume = (_: any, dur: number) => {
+            // Only update duration if a file is actually loaded
+            if (!currentFileRef.current) return
+
+            // console.log('[App] Duration Update:', dur)
             currentDurationRef.current = dur
+            setDuration(dur) // Keep UI in sync
         }
         ipcRenderer.on('mpv-duration', onMpvDurationForResume)
 
         // When filename changes, save position of previous file and check new file
         const onFilenameChange = (_: any, name: string) => {
-            console.log('Filename update:', name)
+            console.log('[App] Filename update:', name)
 
-            // Save position of previous file (if any)
+            // Save position of previous file (if valid)
             if (currentFileRef.current && currentPositionRef.current > 0) {
                 resumePositions.savePosition(
                     currentFileRef.current,
@@ -95,6 +106,23 @@ function App(): JSX.Element {
             currentPositionRef.current = 0
             currentDurationRef.current = 0
             setFilename(name)
+
+            // Explicitly reset time UI if filename is empty/null
+            if (!name || name.length === 0) {
+                // Send dummy time/duration updates to clear seek bar
+                // This is a bit of a hack but ensures UI clears if it depends on these events
+                // Better way is if UI component listens to 'filename' being empty
+                ipcRenderer.send('mpv-time', 0)
+                ipcRenderer.send('mpv-duration', 0)
+            }
+
+            // If we have a filename, it means MPV is playing something -> transparency ON
+            if (name && name.length > 0) {
+                console.log('[App] Valid filename detected. Setting hasLoadedFile = true (Video UI Active)')
+                setHasLoadedFile(true)
+            } else {
+                console.log('[App] Empty filename.')
+            }
 
             // Check if this file has a saved position
             const savedPos = resumePositions.getPosition(name)
@@ -135,11 +163,32 @@ function App(): JSX.Element {
         })
 
         // Handle remote actions (e.g. resume confirmed on mobile)
-        ipcRenderer.on('remote-action', (_: any, data: { action: string }) => {
+        const onRemoteAction = (_: any, data: { action: string }) => {
             if (data.action === 'resume-confirmed' || data.action === 'resume-dismissed') {
                 setResumePrompt(null)
             }
-        })
+        }
+        ipcRenderer.on('remote-action', onRemoteAction)
+
+        // Reset App State (e.g. on minimize to tray)
+        const onResetApp = () => {
+            console.log('[App] Received reset-app-state event')
+            setHasLoadedFile(false)
+            setFilename('')
+            currentFileRef.current = '' // Critical: Clear ref so time/duration updates are ignored
+            setResumePrompt(null)
+            currentDurationRef.current = 0
+            currentPositionRef.current = 0
+
+            // Force reset of any UI components that rely on state
+            setDuration(0)
+            setCurrentTime(0)
+            // setHasLoadedFile(false) already done
+
+            // Ensure playback stops
+            ipcRenderer.send('mpv-command', ['stop'])
+        }
+        ipcRenderer.on('reset-app-state', onResetApp)
 
         // Save position when window closes
         const handleBeforeUnload = () => {
@@ -160,6 +209,10 @@ function App(): JSX.Element {
             ipcRenderer.removeListener('mpv-duration', onMpvDurationForResume)
             ipcRenderer.removeAllListeners('mpv-filename')
             ipcRenderer.removeAllListeners('mpv-load-file')
+            ipcRenderer.removeListener('reset-app-state', onResetApp)
+            ipcRenderer.removeListener('remote-client-connected', onRemoteConnected)
+            ipcRenderer.removeListener('remote-client-disconnected', onRemoteDisconnected)
+            ipcRenderer.removeListener('remote-action', onRemoteAction)
             window.removeEventListener('beforeunload', handleBeforeUnload)
         }
     }, [resumePositions.savePosition, resumePositions.getPosition])
@@ -413,8 +466,8 @@ function App(): JSX.Element {
                 overflow: 'hidden',
                 position: 'relative',
                 borderRadius: '0',
-                background: hasStarted ? 'rgba(0, 0, 0, 0.01)' : 'rgba(0, 0, 0, 0.7)',
-                backdropFilter: hasStarted ? 'none' : 'blur(20px)',
+                background: hasLoadedFile ? 'rgba(0, 0, 0, 0.01)' : 'rgba(0, 0, 0, 0.7)',
+                backdropFilter: hasLoadedFile ? 'none' : 'blur(20px)',
                 boxShadow: 'none'
                 // pointerEvents defaults to 'auto' which allows drag/drop to work
             }}
@@ -552,7 +605,7 @@ function App(): JSX.Element {
             )}
 
             {/* Startup/Welcome Overlay */}
-            {!isDragOver && !hasStarted && (
+            {!isDragOver && !hasLoadedFile && (
                 <div style={{
                     position: 'absolute',
                     top: 0,
@@ -606,7 +659,7 @@ function App(): JSX.Element {
             ></div>
 
             {/* Now Playing Title (Top Left) */}
-            {hasStarted && filename && (
+            {hasLoadedFile && filename && (
                 <div style={{
                     position: 'absolute',
                     top: '10px',

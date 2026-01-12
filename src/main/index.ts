@@ -4,7 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/NauticPlayerIcon.ico?asset'
 import { setupMpvController, setupIpcHandlers, updateYtdl, sendCommand } from './mpvController'
-import { startRemoteServer, resolveBestIps } from './remoteServer'
+import { startRemoteServer, resolveBestIps, setCurrentFile, sendShutdownAck } from './remoteServer'
 import { setupSubtitleController } from './subtitleController'
 import { logger } from './lib/logger'
 import { getPreference, savePreference } from './lib/preferences'
@@ -15,6 +15,7 @@ autoUpdater.logger = logger as any
 
 let mainWindow: BrowserWindow | null = null
 let isInFullScreenMode = false // Manual tracking for fullscreen state
+let remoteWakeSuppressedUntil = 0 // Timestamp to ignore wakes after shutdown
 
 // Export getter for fullscreen state (used by mpvController)
 export function getIsFullScreen(): boolean {
@@ -312,7 +313,12 @@ app.whenReady().then(() => {
   const tray = createTray(mainWindow!)
   
   // Handle wake-on-connect from remote server
+  // Handle wake-on-connect from remote server
   ipcMain.on('remote-wake', () => {
+      if (Date.now() < remoteWakeSuppressedUntil) {
+          logger.log('[MAIN] Ignoring Wake Signal (Suppressed after Shutdown)')
+          return
+      }
       logger.log('[MAIN] Received Wake Signal from Remote')
       if (mainWindow) {
           if (mainWindow.isMinimized()) mainWindow.restore()
@@ -326,13 +332,13 @@ app.whenReady().then(() => {
   })
 })
 
-process.on('uncaughtException', (error) => {
-  logger.error('[PROCESS] Uncaught:', { message: error.message })
+;(process as any).on('uncaughtException', (error: any) => {
+  logger.error('[PROCESS] Uncaught:', { message: error?.message || error })
 })
 
 // Quit when all windows are closed, except on macOS. 
 // OR if we want to keep running in tray on Windows/Linux too.
-process.on('window-all-closed', () => {
+app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && !isQuitting) {
      // If not explicit quit, do nothing (keep app running in tray if desired)
      // BUT current requirement is "keep in tray".
@@ -348,6 +354,11 @@ process.on('window-all-closed', () => {
 import { Tray, Menu, nativeImage } from 'electron'
 let tray: Tray | null = null
 let isQuitting = false
+
+// Export setter for isQuitting so mpvController can trigger a full quit
+export function setQuitting(value: boolean): void {
+    isQuitting = value
+}
 
 function createTray(win: BrowserWindow): Tray {
     const iconPath = is.dev
@@ -370,16 +381,47 @@ function createTray(win: BrowserWindow): Tray {
     trayInstance.setContextMenu(contextMenu)
     
     trayInstance.on('double-click', () => {
-        win.show()
+        logger.log('[TRAY] Double-click detected. Showing window...')
+        if (win) {
+            if (win.isMinimized()) win.restore()
+            win.show()
+            win.focus()
+            logger.log('[TRAY] Window show/focus called.')
+        } else {
+             logger.error('[TRAY] Window reference is NULL!')
+        }
     })
 
     // Handle Window Close (Minimize to Tray)
     win.on('close', (event) => {
+        logger.log(`[WINDOW] Close event. isQuitting=${isQuitting}`)
         if (!isQuitting) {
             event.preventDefault()
+            try {
+                // Stop playback and reset UI state when minimizing to tray
+                logger.log('[WINDOW] Stopping playback and resetting state...')
+                sendCommand({ command: ['stop'] })
+                // Clear remote server state so it doesn't think a file is playing
+                setCurrentFile(null)
+                
+                // timeout to 3000ms (enough to skip auto-reconnect, short enough for user retry)
+                remoteWakeSuppressedUntil = Date.now() + 3000 
+                logger.log(`[WINDOW] Remote wake suppressed until ${remoteWakeSuppressedUntil}`)
+                
+                // Confirm shutdown to remote client so it can disconnect safely
+                sendShutdownAck()
+
+                win.webContents.send('reset-app-state')
+                logger.log('[WINDOW] reset-app-state sent to renderer')
+            } catch (e: any) {
+                logger.error('[WINDOW] Error during close sequence:', e)
+            }
+            
             win.hide()
+            logger.log('[WINDOW] Window hidden (minimized to tray)')
             return false
         }
+        logger.log('[WINDOW] Quitting app...')
         return true
     })
 
