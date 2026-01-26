@@ -9,6 +9,8 @@ import startupImg from './assets/NauticPlayerHello-.png'
 import { useResumePositions, formatTime } from './hooks/useResumePositions'
 import { usePlaylist } from './hooks/usePlaylist'
 import { useLocalQueue } from './hooks/useLocalQueue'
+import { useWatchParty } from './hooks/useWatchParty'
+import WatchPartyModal from './components/WatchPartyModal'
 
 const { ipcRenderer } = (window as any).require('electron')
 
@@ -35,6 +37,86 @@ function App(): JSX.Element {
     const { currentIndex, isPlaylistActive, totalItems } = usePlaylist()
     const localQueue = useLocalQueue()
 
+    // Watch Party state
+    const [showWatchParty, setShowWatchParty] = useState(false)
+
+    // Watch Party hook with action callbacks
+    const watchPartyCallbacks = {
+        onRemoteAction: (action: { type: string; time?: number }) => {
+            // Handle sync actions from host (for guests)
+            if (action.type === 'play') {
+                ipcRenderer.send('mpv-command', ['set_property', 'pause', false])
+            } else if (action.type === 'pause') {
+                ipcRenderer.send('mpv-command', ['set_property', 'pause', true])
+            } else if (action.type === 'seek' && action.time !== undefined) {
+                ipcRenderer.send('mpv-seek-to', action.time)
+            } else if (action.type === 'sync' && action.time !== undefined) {
+                // Soft sync - only seek if too far off
+                const diff = Math.abs(currentPositionRef.current - action.time)
+                if (diff > 2) {
+                    ipcRenderer.send('mpv-seek-to', action.time)
+                }
+            }
+        },
+        onMediaSync: async (state: { filename: string; duration: number; time: number; paused: boolean; streamUrl: string | null; publicStreamUrl?: string | null; needsTranscode?: boolean }) => {
+            // Initial sync when joining party
+            console.log('[WatchParty] Media sync received:', state)
+
+            // Determine which stream URL to use
+            let streamToLoad = state.streamUrl // Default to local
+
+            // If we have a public URL (tunnel), need to start transcoding first
+            if (state.publicStreamUrl && state.needsTranscode) {
+                console.log('[WatchParty] Starting transcoding for Internet stream...')
+
+                try {
+                    // Extract base URL from HLS URL to call transcoding endpoint
+                    const baseUrl = state.publicStreamUrl.replace('/hls/playlist.m3u8', '')
+                    const startTime = Math.floor(state.time || 0)
+
+                    // Start transcoding on host
+                    const response = await fetch(`${baseUrl}/stream-transcode?t=${startTime}`)
+                    const data = await response.json()
+
+                    if (data.ready && data.url) {
+                        // HLS is ready, construct full URL
+                        streamToLoad = `${baseUrl}${data.url}`
+                        console.log('[WatchParty] HLS ready, loading:', streamToLoad)
+                    } else {
+                        console.warn('[WatchParty] Transcoding not ready, falling back to direct URL')
+                        streamToLoad = state.publicStreamUrl
+                    }
+                } catch (err) {
+                    console.error('[WatchParty] Failed to start transcoding:', err)
+                    // Fallback to direct stream
+                    streamToLoad = state.publicStreamUrl || state.streamUrl
+                }
+            } else if (state.publicStreamUrl) {
+                streamToLoad = state.publicStreamUrl
+            }
+
+            if (streamToLoad) {
+                console.log('[WatchParty] Loading stream in MPV:', streamToLoad)
+                ipcRenderer.send('mpv-load', streamToLoad)
+                setHasLoadedFile(true)
+            }
+
+            // Seek to current position
+            setTimeout(() => {
+                if (state.time > 0) {
+                    ipcRenderer.send('mpv-seek-to', state.time)
+                }
+                if (!state.paused) {
+                    ipcRenderer.send('mpv-command', ['set_property', 'pause', false])
+                }
+            }, 2000) // Give MPV more time to buffer the stream
+        }
+    }
+
+    const { party, createParty, joinParty, leaveParty, broadcastAction, sendHeartbeat } = useWatchParty(
+        watchPartyCallbacks.onRemoteAction,
+        watchPartyCallbacks.onMediaSync
+    )
 
 
     // Listen for maximize state changes
@@ -60,7 +142,20 @@ function App(): JSX.Element {
 
     // Toast Listener + Smart Resume Logic
     useEffect(() => {
+        // Messages to filter out (auto-updates, startup noise)
+        const ignoredMsgPatterns = [
+            'Updating engines',
+            'Auto-Updated',
+            'Update refresh',
+            'Engines updated'
+        ]
+
         const onMpvMsg = (_: any, text: string) => {
+            // Skip ignored messages
+            if (ignoredMsgPatterns.some(pattern => text.includes(pattern))) {
+                console.log('[Toast] Filtered:', text)
+                return
+            }
             setToastMsg(text)
             setTimeout(() => setToastMsg(''), 5000) // 5 seconds
         }
@@ -140,17 +235,11 @@ function App(): JSX.Element {
         const onRemoteConnected = (_: any, data: any) => {
             setRemoteConnected(true)
             setShowRemote(false)
-            setToastMsg('Smartphone Connected 📱')
-            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
-            toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 3000)
         }
 
         const onRemoteDisconnected = (_: any, data: any) => {
             if (data.count === 0) {
                 setRemoteConnected(false)
-                setToastMsg('Smartphone Disconnected')
-                if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
-                toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 3000)
             }
         }
         ipcRenderer.on('remote-client-connected', onRemoteConnected)
@@ -323,6 +412,8 @@ function App(): JSX.Element {
     useEffect(() => {
         const handleSubDelay = (_: any, delay: number) => {
             setSubDelay(delay)
+            // Skip toast if delay is 0 (initial value at startup)
+            if (delay === 0) return
             // Show toast with actual value from MPV
             setToastMsg(`Subtitles ${delay >= 0 ? '+' : ''}${delay.toFixed(1)}s`)
             if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
@@ -814,8 +905,36 @@ function App(): JSX.Element {
                         setShowRemote(!showRemote)
                     }}
                     remoteConnected={remoteConnected}
+
+                    toggleWatchParty={() => {
+                        if (!showWatchParty) {
+                            setShowSettings(false)
+                            setShowRemote(false)
+                        }
+                        setShowWatchParty(!showWatchParty)
+                    }}
+                    watchPartyActive={party.active}
                 />
             </div>
+
+            {/* Watch Party Modal */}
+            <WatchPartyModal
+                isOpen={showWatchParty}
+                onClose={() => setShowWatchParty(false)}
+                party={party}
+                currentFilename={filename}
+                currentDuration={currentDurationRef.current}
+                currentTime={currentPositionRef.current}
+                onCreateParty={async (name, enableInternet) => {
+                    const result = await createParty(name, filename, currentDurationRef.current, currentPositionRef.current, enableInternet)
+                    return result
+                }}
+                onJoinParty={async (url, name) => {
+                    const result = await joinParty(url, name)
+                    return result
+                }}
+                onLeaveParty={leaveParty}
+            />
 
             {/* Remote Modal (Top Level) */}
             {showRemote && <RemoteModal onClose={() => setShowRemote(false)} />}
@@ -824,18 +943,20 @@ function App(): JSX.Element {
             {toastMsg && (
                 <div style={{
                     position: 'fixed',
-                    bottom: '110px',
-                    left: '20px',
-                    background: 'transparent',
-                    color: '#fff',
-                    padding: '0',
-                    fontSize: '18px',
-                    fontWeight: 700,
-                    fontFamily: 'monospace',
+                    bottom: '8px',
+                    left: '8px',
+                    background: 'rgba(0, 0, 0, 0.6)',
+                    color: 'rgba(255, 255, 255, 0.85)',
+                    padding: '6px 12px',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    fontFamily: "'Inter', -apple-system, sans-serif",
+                    borderRadius: '6px',
                     zIndex: 9999,
-                    textShadow: '0 2px 8px rgba(0,0,0,0.8)',
-                    animation: 'fadeIn 0.2s ease-out',
-                    pointerEvents: 'none'
+                    animation: 'fadeIn 0.15s ease-out',
+                    pointerEvents: 'none',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)'
                 }}>
                     {toastMsg}
                 </div>

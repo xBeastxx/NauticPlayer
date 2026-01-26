@@ -696,7 +696,9 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 16px;
+            padding: 16px 16px;
+            padding-top: calc(16px + env(safe-area-inset-top, 24px));
+            /* Safe area for notch + extra space */
             background: rgba(0, 0, 0, 0.8);
             position: absolute;
             top: 0;
@@ -1703,6 +1705,107 @@
                 streamAvailable = data.available;
                 updateStreamBadge(data.available);
             });
+
+            // ============================================
+            // WATCH PARTY GUEST LOGIC
+            // ============================================
+
+            // Check for Room ID in URL (e.g. /NP-ABCD-1234)
+            const path = window.location.pathname;
+            const roomMatch = path.match(/\/(NP-[A-Z0-9-]+)/);
+
+            if (roomMatch && roomMatch[1]) {
+                const roomId = roomMatch[1];
+                console.log('[Party] Found Room ID:', roomId);
+
+                // Auto-join after connection
+                socket.emit('party:join', {
+                    roomId,
+                    name: localStorage.getItem('guestName') || 'Mobile Guest ' + Math.floor(Math.random() * 1000)
+                }, (response) => {
+                    console.log('[Party] Join result:', response);
+                    if (response.success) {
+                        // Switch UI to Guest Mode
+                        document.getElementById('status-text').textContent = 'Joined Party';
+                        // Auto-open watch mode
+                        openWatchMode();
+                    } else {
+                        alert('Failed to join party: ' + response.error);
+                    }
+                });
+
+                // Listen for Sync (Initial State)
+                socket.on('party:sync', (state) => {
+                    console.log('[Party] Sync:', state);
+                    // Update local state
+                    playerState.filename = state.filename || 'Watch Party';
+                    playerState.duration = state.duration;
+                    playerState.time = state.time;
+                    playerState.paused = state.paused;
+
+                    updateAllUI();
+
+                    // If video player is open, sync it
+                    const video = document.getElementById('watch-video');
+                    if (video) {
+                        // Only sync if significantly out of sync (>10s)
+                        // Smaller drifts are tolerable for HLS streaming
+                        if (Math.abs(video.currentTime - state.time) > 10) {
+                            if (video.hls) {
+                                // HLS needs stream reload for large seeks
+                                openWatchMode(true);
+                            } else {
+                                video.currentTime = state.time;
+                            }
+                        }
+                        if (state.paused) video.pause();
+                        else video.play().catch(e => console.warn(e));
+                    }
+                });
+
+                // Listen for Actions (Play/Pause/Seek)
+                socket.on('party:action', (action) => {
+                    console.log('[Party] Action:', action);
+                    const video = document.getElementById('watch-video');
+                    if (!video) return;
+
+                    switch (action.type) {
+                        case 'play':
+                            video.play().catch(console.warn);
+                            playerState.paused = false;
+                            updatePlayPauseUI();
+                            break;
+
+                        case 'pause':
+                            video.pause();
+                            playerState.paused = true;
+                            updatePlayPauseUI();
+                            break;
+
+                        case 'seek':
+                            // For HLS transcoded video, we need to reload the stream
+                            // Direct seeking doesn't work properly with live HLS
+                            if (action.time !== undefined) {
+                                const diff = Math.abs(video.currentTime - action.time);
+                                // Only sync if difference is significant (>5s)
+                                if (diff > 5) {
+                                    console.log('[Party] Host seeked, reloading from', action.time);
+                                    // If using HLS transcoding, reload the stream
+                                    if (video.hls) {
+                                        // Re-open watch mode at new position
+                                        openWatchMode(true); // This will restart with new startTime from server state
+                                    } else {
+                                        // Native video - can seek directly
+                                        video.currentTime = action.time;
+                                    }
+                                }
+                                playerState.time = action.time;
+                                updateTimeUI();
+                            }
+                            break;
+                    }
+                });
+            }
         }
 
         function updateConnectionUI(status) {

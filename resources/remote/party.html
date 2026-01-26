@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0f">
+    <title>Watch Party - NauticPlayer</title>
+    <link rel="icon" type="image/ico" href="/icon.ico">
+
+    <!-- HLS.js for streaming -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-dim: rgba(255, 255, 255, 0.4);
+        }
+
+        html,
+        body {
+            height: 100%;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header h1::before {
+            content: "🎬";
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.disconnected {
+            background: #ef4444;
+            animation: none;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* Video Container */
+        .video-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            position: relative;
+        }
+
+        .video-container video {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Loading State */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Info Bar */
+        .info-bar {
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .info-bar .filename {
+            font-size: 13px;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 60%;
+        }
+
+        .info-bar .time {
+            font-size: 13px;
+            color: var(--text-dim);
+            font-family: monospace;
+        }
+
+        /* Error State */
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #ef4444;
+            padding: 24px;
+        }
+
+        .error h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .error p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Hidden */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Watch Party</h1>
+            <div class="status">
+                <div class="status-dot disconnected" id="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+
+        <!-- Video Container -->
+        <div class="video-container" id="video-container">
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <span>Joining party...</span>
+            </div>
+
+            <video id="video" controls playsinline class="hidden"></video>
+
+            <div class="error hidden" id="error">
+                <h3>Connection Error</h3>
+                <p id="error-message">Unable to connect to the party.</p>
+            </div>
+        </div>
+
+        <!-- Info Bar -->
+        <div class="info-bar">
+            <div class="filename" id="filename">Waiting for stream...</div>
+            <div class="time" id="time">--:--</div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // STATE
+        // ============================================
+        let socket = null;
+        let hls = null;
+        let roomId = null;
+        let isConnected = false;
+        let lastSeekTime = 0;           // Prevent rapid seeks
+        const SEEK_THRESHOLD = 10;      // Only sync if difference > 10 seconds
+        const SEEK_COOLDOWN = 3000;     // Wait 3s between syncs
+
+        // ============================================
+        // DOM ELEMENTS
+        // ============================================
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const loading = document.getElementById('loading');
+        const video = document.getElementById('video');
+        const errorDiv = document.getElementById('error');
+        const errorMessage = document.getElementById('error-message');
+        const filenameEl = document.getElementById('filename');
+        const timeEl = document.getElementById('time');
+
+        // ============================================
+        // HELPERS
+        // ============================================
+        function formatTime(seconds) {
+            if (!seconds || isNaN(seconds)) return '--:--';
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            if (h > 0) {
+                return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function showError(message) {
+            loading.classList.add('hidden');
+            video.classList.add('hidden');
+            errorDiv.classList.remove('hidden');
+            errorMessage.textContent = message;
+        }
+
+        function showVideo() {
+            loading.classList.add('hidden');
+            errorDiv.classList.add('hidden');
+            video.classList.remove('hidden');
+        }
+
+        function updateStatus(connected, text) {
+            isConnected = connected;
+            statusDot.classList.toggle('disconnected', !connected);
+            statusText.textContent = text;
+        }
+
+        // ============================================
+        // GET ROOM ID FROM URL
+        // ============================================
+        function getRoomId() {
+            const path = window.location.pathname;
+            const match = path.match(/\/(NP-[A-Z0-9-]+)/);
+            return match ? match[1] : null;
+        }
+
+        // ============================================
+        // LOAD STREAM
+        // ============================================
+        async function loadStream(startTime = 0) {
+            try {
+                // Start transcoding
+                const response = await fetch(`/stream-transcode?t=${Math.floor(startTime)}`);
+                const data = await response.json();
+
+                if (!data.ready || !data.url) {
+                    throw new Error('Stream not available');
+                }
+
+                // Load HLS
+                if (Hls.isSupported()) {
+                    if (hls) hls.destroy();
+
+                    hls = new Hls({
+                        debug: false,
+                        enableWorker: true
+                    });
+
+                    hls.loadSource(data.url);
+                    hls.attachMedia(video);
+
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                        showVideo();
+                        video.play().catch(e => console.warn('Autoplay blocked:', e));
+                    });
+
+                    hls.on(Hls.Events.ERROR, (event, data) => {
+                        if (data.fatal) {
+                            showError('Stream error: ' + data.type);
+                        }
+                    });
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    // Safari native HLS
+                    video.src = data.url;
+                    video.addEventListener('loadedmetadata', () => {
+                        showVideo();
+                        video.play().catch(e => console.warn('Autoplay blocked:', e));
+                    });
+                } else {
+                    showError('Your browser does not support HLS playback');
+                }
+            } catch (err) {
+                console.error('Failed to load stream:', err);
+                showError('Failed to load stream: ' + err.message);
+            }
+        }
+
+        // ============================================
+        // SOCKET CONNECTION
+        // ============================================
+        function connect() {
+            roomId = getRoomId();
+
+            if (!roomId) {
+                showError('Invalid party link. No room ID found.');
+                return;
+            }
+
+            console.log('[Party] Connecting to room:', roomId);
+
+            socket = io({
+                transports: ['websocket', 'polling'],
+                timeout: 15000
+            });
+
+            socket.on('connect', () => {
+                console.log('[Party] Connected to server');
+                updateStatus(true, 'Joining...');
+
+                // Join the party room
+                const guestName = 'Guest ' + Math.floor(Math.random() * 1000);
+
+                socket.emit('party:join', { roomId, name: guestName }, (response) => {
+                    console.log('[Party] Join result:', response);
+
+                    if (response.success) {
+                        updateStatus(true, 'In Party');
+                    } else {
+                        showError(response.error || 'Failed to join party');
+                        updateStatus(false, 'Failed');
+                    }
+                });
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('[Party] Disconnected:', reason);
+                updateStatus(false, 'Disconnected');
+            });
+
+            socket.on('connect_error', (err) => {
+                console.error('[Party] Connection error:', err);
+                showError('Connection failed: ' + err.message);
+                updateStatus(false, 'Error');
+            });
+
+            // Initial sync when joining
+            socket.on('party:sync', (state) => {
+                console.log('[Party] Sync received:', state);
+
+                filenameEl.textContent = state.filename || 'Watch Party';
+
+                // Load the stream
+                loadStream(state.time || 0);
+            });
+
+            // Host actions (play/pause/seek)
+            socket.on('party:action', (action) => {
+                console.log('[Party] Action:', action);
+
+                switch (action.type) {
+                    case 'play':
+                        video.play().catch(console.warn);
+                        break;
+                    case 'pause':
+                        video.pause();
+                        break;
+                    case 'seek':
+                        // When host seeks, restart the stream from the new position
+                        // This triggers a new transcode starting from that timestamp
+                        if (action.time !== undefined) {
+                            const now = Date.now();
+                            // Only seek if difference is significant and not in cooldown
+                            if (Math.abs(video.currentTime - action.time) > 5 &&
+                                now - lastSeekTime > SEEK_COOLDOWN) {
+                                console.log('[Party] Host seeked, reloading from', action.time);
+                                lastSeekTime = now;
+                                // Reload the stream from the new position
+                                loadStream(action.time);
+                            }
+                        }
+                        break;
+                }
+            });
+
+            // Party closed by host
+            socket.on('party:closed', (data) => {
+                console.log('[Party] Closed:', data);
+                showError(data?.reason || 'Party ended by host');
+                updateStatus(false, 'Ended');
+            });
+        }
+
+        // ============================================
+        // VIDEO TIME UPDATE
+        // ============================================
+        video.addEventListener('timeupdate', () => {
+            timeEl.textContent = formatTime(video.currentTime);
+        });
+
+        // ============================================
+        // INIT
+        // ============================================
+        connect();
+    </script>
+</body>
+
+</html>

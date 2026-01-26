@@ -49,7 +49,7 @@ export default function RemoteModal({ onClose }: RemoteModalProps) {
             display: 'grid',         // Grid centering is very robust
             placeItems: 'center',    // Perfectly centers child
             animation: 'fadeInOverlay 0.2s ease-out'
-        }} onClick={onClose}>
+        }} onClick={onClose} onWheel={e => e.stopPropagation()}>
             <style>{`
                 @keyframes fadeInOverlay {
                     from { opacity: 0; }
@@ -76,7 +76,7 @@ export default function RemoteModal({ onClose }: RemoteModalProps) {
                 position: 'relative',
                 transformOrigin: 'center center',
                 animation: 'popInCenter 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-            }} onClick={e => e.stopPropagation()}>
+            }} onClick={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
 
                 {/* Close Button */}
                 <button

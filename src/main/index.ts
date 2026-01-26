@@ -44,7 +44,8 @@ function createWindow(): void {
       sandbox: false,
       nodeIntegration: true, // Required for current renderer code
       contextIsolation: false, // Required for current renderer code
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      webSecurity: false // Allow fetch to external URLs (Cloudflare tunnel for Watch Party)
     }
   })
 

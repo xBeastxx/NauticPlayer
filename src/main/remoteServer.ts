@@ -13,6 +13,7 @@ import { is } from '@electron-toolkit/utils'
 import { ipcMain, BrowserWindow, app as electronApp } from 'electron'
 import * as fs from 'fs'
 import { spawn, ChildProcess, exec } from 'child_process'
+import { initWatchParty, setupPartySocketHandlers } from './watchPartyServer'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -68,6 +69,10 @@ let server: http.Server | null = null
 let io: Server | null = null
 let PORT = 5678
 let connectedClients = 0
+let uiSenderRef: Electron.WebContents | null = null  // Reference to UI for sending updates
+
+// Track Watch Party sockets (they don't count as Remote clients)
+const watchPartySocketIds = new Set<string>()
 
 // Current file being played (for streaming)
 let currentFilePath: string | null = null
@@ -324,9 +329,17 @@ function setupSocketHandlers(socket: Socket, uiSender: Electron.WebContents): vo
   // Handle disconnect
   socket.on('disconnect', (reason) => {
     console.log('[Remote] Client disconnected:', reason)
-    connectedClients--
-    if (!uiSender.isDestroyed()) {
-      uiSender.send('remote-client-disconnected', { count: connectedClients })
+    
+    // Only decrement if this is NOT a Watch Party socket
+    // (Watch Party sockets were already excluded from the count)
+    if (!watchPartySocketIds.has(socket.id)) {
+      connectedClients--
+      if (!uiSender.isDestroyed()) {
+        uiSender.send('remote-client-disconnected', { count: connectedClients })
+      }
+    } else {
+      // Clean up the Watch Party tracking
+      watchPartySocketIds.delete(socket.id)
     }
   })
 }
@@ -339,6 +352,9 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
   if (server) {
     return { port: PORT, ips: getLocalIps() }
   }
+
+  // Store reference to uiSender for use in markSocketAsWatchParty
+  uiSenderRef = uiSender
 
   app = express()
   server = http.createServer(app)
@@ -358,6 +374,9 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
     allowEIO3: true
   })
 
+  // Initialize Watch Party system
+  initWatchParty(io)
+
   // Listen for resume prompt sync from frontend (Moved here to avoid duplicate listeners)
   ipcMain.removeAllListeners('sync-resume-state')
   ipcMain.on('sync-resume-state', (_event, state) => {
@@ -374,7 +393,13 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
   
   app.use(express.static(resourcesPath))
 
-  // Fallback route
+  // Handle Room IDs (e.g. /NP-ABCD-1234) - Serve dedicated Watch Party page
+  // This is separate from the Remote Control page (index.html)
+  app.get(/^\/NP-[A-Z0-9-]+$/, (_req, res) => {
+    res.sendFile(join(resourcesPath, 'party.html'))
+  })
+
+  // Root route
   app.get('/', (_req, res) => {
     res.sendFile(join(resourcesPath, 'index.html'))
   })
@@ -477,11 +502,17 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
     // Ensure HLS directory exists and is empty
     const hlsDir = join(electronApp.getPath('userData'), 'hls-stream')
     if (fs.existsSync(hlsDir)) {
-      try {
-        fs.readdirSync(hlsDir).forEach(f => fs.unlinkSync(join(hlsDir, f)))
-      } catch (e) {
-        console.error('[Remote] Failed to clean HLS dir:', e)
-      }
+      // Clean up old files, but skip files that are busy (in use)
+      fs.readdirSync(hlsDir).forEach(f => {
+        try {
+          fs.unlinkSync(join(hlsDir, f))
+        } catch (e: any) {
+          // Ignore EBUSY errors - file is still being used, will be cleaned up later
+          if (e.code !== 'EBUSY') {
+            console.warn('[Remote] Could not delete:', f, e.code)
+          }
+        }
+      })
     } else {
       fs.mkdirSync(hlsDir, { recursive: true })
     }
@@ -531,11 +562,11 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
       '-ac', '2',
       '-ar', '44100',
       
-      // HLS settings
+      // HLS settings - optimized for Watch Party seeking
       '-f', 'hls',
-      '-hls_time', '4',                  // 4 second segments
-      '-hls_list_size', '5',             // Keep 5 segments in playlist
-      '-hls_flags', 'delete_segments+split_by_time',
+      '-hls_time', '2',                  // 2 second segments for more precise seeking
+      '-hls_list_size', '0',             // Keep ALL segments in playlist (enables full seeking)
+      '-hls_flags', 'split_by_time+append_list', // Don't delete old segments, allow seeking back
       '-hls_segment_filename', join(hlsDir, 'segment_%03d.ts'),
       playlistPath
     ]
@@ -679,8 +710,13 @@ export function startRemoteServer(uiSender: Electron.WebContents, _mpvWindow: Br
 
 
   // Socket.io connection handler
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     setupSocketHandlers(socket, uiSender)
+    
+    // Setup Watch Party handlers
+    const ips = await resolveBestIps()
+    const hostIp = ips[0] || '127.0.0.1'
+    setupPartySocketHandlers(socket, hostIp, PORT)
   })
 
   // Start heartbeat (broadcast time position regularly for smooth sync)
@@ -741,4 +777,24 @@ export function stopRemoteServer(): void {
 
 export function getConnectedClients(): number {
   return connectedClients
+}
+
+// Mark a socket as Watch Party (so it doesn't count as Remote client)
+export function markSocketAsWatchParty(socketId: string): void {
+  if (!watchPartySocketIds.has(socketId)) {
+    watchPartySocketIds.add(socketId)
+    // Decrement the counter since this socket was already counted on connect
+    if (connectedClients > 0) {
+      connectedClients--
+      // Notify UI of the corrected count
+      if (uiSenderRef && !uiSenderRef.isDestroyed()) {
+        uiSenderRef.send('remote-client-disconnected', { count: connectedClients })
+      }
+    }
+  }
+}
+
+// Unmark a socket (called when leaving Watch Party)
+export function unmarkSocketAsWatchParty(socketId: string): void {
+  watchPartySocketIds.delete(socketId)
 }

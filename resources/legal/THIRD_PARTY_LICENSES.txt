@@ -1,0 +1,18 @@
+Third Party Licenses
+====================
+
+NauticPlayer includes the following third-party software:
+
+---
+
+cloudflared
+-----------
+Copyright (c) Cloudflare, Inc.
+Licensed under the Apache License, Version 2.0
+
+https://github.com/cloudflare/cloudflared
+https://www.apache.org/licenses/LICENSE-2.0
+
+cloudflared is used to enable internet access for Watch Party feature,
+allowing users to share synchronized viewing sessions with friends 
+outside their local network.

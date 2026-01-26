@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock, Loader2, History, ChevronLeft, ChevronRight, ListMusic, Smartphone } from 'lucide-react'
+import { Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Maximize2, Minimize2, Monitor, Settings, Globe, Sparkles, Music, FolderOpen, Lock, Loader2, History, ChevronLeft, ChevronRight, ListMusic, Smartphone, Users } from 'lucide-react'
 import SettingsMenu from './SettingsMenu'
 import HistoryPanel from './HistoryPanel'
 import LocalQueuePanel from './LocalQueuePanel'
@@ -50,7 +50,7 @@ const formatTime = (seconds: number): string => {
 
 // ... imports
 
-export default function Controls({ showSettings, setShowSettings, filename, onMouseEnter, onMouseLeave, isLoadingUrl, setIsLoadingUrl, showUrlInput, setShowUrlInput, toggleRemote, remoteConnected }: any): JSX.Element {
+export default function Controls({ showSettings, setShowSettings, filename, onMouseEnter, onMouseLeave, isLoadingUrl, setIsLoadingUrl, showUrlInput, setShowUrlInput, toggleRemote, remoteConnected, toggleWatchParty, watchPartyActive }: any): JSX.Element {
     // Playback State
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
@@ -667,6 +667,16 @@ export default function Controls({ showSettings, setShowSettings, filename, onMo
 
                     {/* Right Tools - Cleaner, just Settings + Fullscreen */}
                     <div style={{ display: 'flex', gap: '15px' }}>
+
+                        {/* Watch Party Button with Active Indicator */}
+                        <FloatingButton onClick={(e: any) => {
+                            e.stopPropagation();
+                            toggleWatchParty();
+                            setShowHistory(false);
+                            setShowSettings(false);
+                        }} data-watch-party-button="true">
+                            <Users size={20} color={watchPartyActive ? "#8b5cf6" : "rgba(255,255,255,0.7)"} style={watchPartyActive ? { filter: 'drop-shadow(0 0 5px #8b5cf6)' } : {}} />
+                        </FloatingButton>
 
                         <FloatingButton onClick={(e: any) => {
                             e.stopPropagation();
